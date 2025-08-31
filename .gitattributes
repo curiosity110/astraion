@@ -1,0 +1,30 @@
+# Normalize line endings
+* text=auto eol=lf
+
+# Treat common config as text
+*.yml text
+*.yaml text
+*.json text
+*.toml text
+*.ini text
+
+# Treat scripts as text
+*.sh text eol=lf
+*.ps1 text eol=crlf
+
+# Lock binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg binary
+*.ico binary
+*.pdf binary
+
+# Django migrations as text
+*.py text
+
+# Node lock files
+package-lock.json text
+yarn.lock text
+pnpm-lock.yaml text

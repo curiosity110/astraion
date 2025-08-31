@@ -1,35 +1,49 @@
 # apps/trips/views.py
-from django.http import HttpResponse
-import csv
+from django.http import HttpResponse, Http404
 from rest_framework.decorators import api_view
-from .models import Trip, TripSeat, Reservation
+from django.shortcuts import get_object_or_404
+from django.db.models import Prefetch
+import csv
 
+from .models import Trip, TripSeat, SeatAssignment
 
 @api_view(["GET"])
 def export_manifest(request, trip_id):
-    trip = Trip.objects.get(pk=trip_id)
+    trip = get_object_or_404(Trip, pk=trip_id)
+
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = f"attachment; filename=manifest_{trip_id}.csv"
+    response["Content-Disposition"] = (
+        f'attachment; filename=manifest_{trip.trip_date}_{trip.destination}_{trip.id}.csv'
+    )
 
     writer = csv.writer(response)
     writer.writerow(["Seat", "FirstName", "LastName", "Phone", "PassportID", "Pickup", "Status"])
 
-    # Prefetch reservations & clients
-    seats = (
-        TripSeat.objects.filter(trip=trip)
-        .select_related()
-        .prefetch_related("reservation_set__client")
-        .order_by("seat_no")
-    )
+    # Pull all assignments for this trip and map by seat_no
+    assignments = {
+        a.seat_no: a
+        for a in (
+            SeatAssignment.objects.filter(trip=trip)
+            .select_related("passenger_client")
+            .prefetch_related("passenger_client__phones")
+        )
+    }
 
-    for seat in seats:
-        reservation = seat.reservation_set.first()  # MVP: assume max 1 per seat
-        if reservation and reservation.client:
-            client = reservation.client
-            fn, ln = client.first_name, client.last_name
-            phone = client.phones.first().e164 if client.phones.exists() else ""
-            passport = client.passport_id or ""
-            status = reservation.status
+    # Iterate over the canonical seats so we also output empty seats
+    for seat in TripSeat.objects.filter(trip=trip).order_by("seat_no"):
+        a = assignments.get(seat.seat_no)
+        if a:
+            # Prefer inline fields (entered before client is known); fall back to client
+            client = a.passenger_client
+            fn = a.first_name or (client.first_name if client else "") or ""
+            ln = a.last_name or (client.last_name if client else "") or ""
+            phone = a.phone or (
+                (client.phones.filter(is_primary=True).first() or client.phones.first()).e164
+                if client and client.phones.exists()
+                else ""
+            )
+            passport = a.passport_id or (client.passport_id if client else "") or ""
+            status = a.status
         else:
             fn = ln = phone = passport = status = ""
 

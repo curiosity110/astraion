@@ -21,6 +21,3 @@ class PhoneAdmin(admin.ModelAdmin):
     list_display = ("client", "e164", "label", "is_primary")
     list_filter = ("is_primary",)
     search_fields = ("e164",)
-
-
-admin.site.register(Phone)

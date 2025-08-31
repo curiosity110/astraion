@@ -17,8 +17,9 @@ class Client(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        indexes = [models.Index(fields=["last_name", "first_name"])]
-        ordering = ["last_name", "first_name"]
+        # indexes = [models.Index(fields=["last_name", "first_name"])]
+        # ordering = ["last_name", "first_name"]
+        indexes = [models.Index(fields=["e164"])]
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Client, Phone
+from django.conf import settings
 
 class PhoneSerializer(serializers.ModelSerializer):
     class Meta:
@@ -7,6 +8,7 @@ class PhoneSerializer(serializers.ModelSerializer):
         fields = ("id", "e164", "label", "is_primary")
 
 class ClientSerializer(serializers.ModelSerializer):
+    links = serializers.SerializerMethodField()
     phones = PhoneSerializer(many=True, required=False)
 
     class Meta:
@@ -35,3 +37,7 @@ class ClientSerializer(serializers.ModelSerializer):
             for p in phones:
                 Phone.objects.create(client=instance, **p)
         return instance
+    
+    def get_links(self, obj):
+        ui = settings.FRONTEND_BASE_URL
+        return {"ui.self": f"{ui}/clients/{obj.id}"}

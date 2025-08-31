@@ -5,6 +5,10 @@ import "./App.css";
 import { client_fetch } from "./components/clients/Client_Fetch";
 
 function App() {
+  // SeatGrid.tsx
+  const params = new URLSearchParams(location.search);
+  const preselectSeat = Number(params.get("seat") ?? 0);
+  // SeatGrid.tsx
   const { clients, loading, error, refetch } = client_fetch();
   const [count, setCount] = useState(0);
 

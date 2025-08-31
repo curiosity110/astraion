@@ -8,8 +8,8 @@ class PhoneSerializer(serializers.ModelSerializer):
         fields = ("id", "e164", "label", "is_primary")
 
 class ClientSerializer(serializers.ModelSerializer):
-    links = serializers.SerializerMethodField()
     phones = PhoneSerializer(many=True, required=False)
+    links = serializers.SerializerMethodField()
 
     class Meta:
         model = Client

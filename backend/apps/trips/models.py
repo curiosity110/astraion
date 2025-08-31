@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from apps.fleet.models import Bus, Chauffeur
-from people.models import Client
+from apps.people.models import Client
 
 
 class Trip(models.Model):

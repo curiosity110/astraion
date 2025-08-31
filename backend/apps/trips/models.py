@@ -25,6 +25,9 @@ class Trip(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return super().__str__() + f"{self.id} | {self.trip_date} | {self.origin} to {self.destination}"
+
     def save(self, *args, **kwargs):
         creating = self._state.adding
         super().save(*args, **kwargs)
@@ -41,6 +44,9 @@ class PickupPoint(models.Model):
     address = models.CharField(max_length=200, blank=True)
     time_hint = models.TimeField(null=True, blank=True)
 
+    def __str__(self):
+        return f"{self.name} {self.address} ({self.time_hint})"
+
 
 class TripPickup(models.Model):
     trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name="pickups")
@@ -49,12 +55,19 @@ class TripPickup(models.Model):
     order = models.PositiveIntegerField(default=0)
 
 
+    def __str__(self):
+        return (f"{self.id} | {self.trip} | {self.pickup_point} | {self.pickup_time} | {self.order}")
+
+
 class TripSeat(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name="seats")
     seat_no = models.PositiveIntegerField()
     blocked = models.BooleanField(default=False)
     note = models.CharField(max_length=120, blank=True)
+
+    def __str__(self):
+        return f"{self.id} | {self.trip} | {self.seat_no} | {self.blocked}"
 
     class Meta:
         unique_together = ("trip", "seat_no")
@@ -77,6 +90,9 @@ class Reservation(models.Model):
     status = models.CharField(max_length=10, choices=STATUS, default="HOLD")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.id} | {self.trip_seat} | {self.client} | {self.status}"
 
     class Meta:
         ordering = ["trip_seat"]

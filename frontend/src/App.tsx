@@ -1,10 +1,20 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from "react";
+import reactLogo from "./assets/react.svg";
+import viteLogo from "/vite.svg";
+import "./App.css";
+import { client_fetch } from "./components/clients/Client_Fetch";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const { clients, loading, error, refetch } = client_fetch();
+  const [count, setCount] = useState(0);
+
+  if (loading) return <p>Loading…</p>;
+  if (error)
+    return (
+      <p style={{ color: "crimson" }}>
+        Error: {error} <button onClick={refetch}>Try again</button>
+      </p>
+    );
 
   return (
     <>
@@ -16,7 +26,16 @@ function App() {
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>
-      <h1>Vite + React</h1>
+      <h1>Astration Travel</h1>
+      <div>
+        <h1>Clients</h1>
+        <button onClick={refetch}>Refresh</button>
+        <ul>
+          {clients.map((c) => (
+            <li key={c.id}>{c.name}</li>
+          ))}
+        </ul>
+      </div>
       <div className="card">
         <button onClick={() => setCount((count) => count + 1)}>
           count is {count}
@@ -29,7 +48,7 @@ function App() {
         Click on the Vite and React logos to learn more
       </p>
     </>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
-from phonenumber_field.modelfields import PhoneNumberField
+import phonenumbers
+from phonenumbers import NumberParseException, PhoneNumberFormat
 
 
 class Client(models.Model):
@@ -17,9 +18,8 @@ class Client(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # indexes = [models.Index(fields=["last_name", "first_name"])]
-        # ordering = ["last_name", "first_name"]
-        indexes = [models.Index(fields=["e164"])]
+        ordering = ["last_name", "first_name"]
+        indexes = [models.Index(fields=["last_name", "first_name"])]
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
@@ -28,7 +28,7 @@ class Client(models.Model):
 class Phone(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="phones")
-    e164 = PhoneNumberField()
+    e164 = models.CharField(max_length=32)
     label = models.CharField(max_length=30, blank=True)
     is_primary = models.BooleanField(default=False)
 
@@ -38,3 +38,12 @@ class Phone(models.Model):
 
     def __str__(self):
         return f"{self.label or 'Phone'}: {self.e164}"
+
+    def save(self, *args, **kwargs):
+        if self.e164:
+            try:
+                pn = phonenumbers.parse(str(self.e164), None)
+                self.e164 = phonenumbers.format_number(pn, PhoneNumberFormat.E164)
+            except NumberParseException:
+                pass
+        super().save(*args, **kwargs)

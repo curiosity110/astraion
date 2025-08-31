@@ -5,8 +5,14 @@
 # from django.db.models import Prefetch
 # import csv
 
+from django.http import HttpResponse
 from .serializers import TripSerializer
 from .models import Trip, TripSeat, SeatAssignment
+
+
+def export_manifest(request, trip_id):
+    return HttpResponse("Not implemented", status=501)
+
 
 # @api_view(["GET"])
 # def export_manifest(request, trip_id):
@@ -56,6 +62,7 @@ from .models import Trip, TripSeat, SeatAssignment
 # backend/apps/trips/views.py (excerpt)
 from rest_framework.decorators import action
 from rest_framework import viewsets
+
 
 class TripViewSet(viewsets.ModelViewSet):
     queryset = Trip.objects.all().order_by("-trip_date")

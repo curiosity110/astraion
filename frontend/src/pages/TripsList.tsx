@@ -24,6 +24,8 @@ export default function TripsList() {
   const [origin, setOrigin] = useState('');
   const [bus, setBus] = useState('');
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
 
   const fetchTrips = () => {
     setLoading(true);
@@ -97,6 +99,25 @@ export default function TripsList() {
     }
   };
 
+  const bulkAction = async (action: string) => {
+    await api('/api/trips/bulk/', {
+      method: 'POST',
+      body: JSON.stringify({ ids: selected, action }),
+    });
+    setSelected([]);
+    fetchTrips();
+  };
+
+  const importCsv = async () => {
+    if (!csvFile) return;
+    const form = new FormData();
+    form.append('file', csvFile);
+    await fetch('/api/trips/import/', { method: 'POST', body: form });
+    setCsvFile(null);
+    (document.getElementById('trip-csv') as HTMLInputElement).value = '';
+    fetchTrips();
+  };
+
   return (
     <Layout title="Trips" breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Trips' }]}>
       <div className="flex flex-col md:flex-row gap-2">
@@ -121,6 +142,10 @@ export default function TripsList() {
         <button className="bg-primary text-white px-4 py-2" onClick={openCreate}>
           Add Trip
         </button>
+        <input id="trip-csv" type="file" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} />
+        <button className="bg-primary text-white px-4 py-2" onClick={importCsv}>
+          Import CSV
+        </button>
         <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/trips/export?format=csv`}>
           Export CSV
         </a>
@@ -128,6 +153,16 @@ export default function TripsList() {
           Export JSON
         </a>
       </div>
+      {selected.length > 0 && (
+        <div className="my-2 space-x-2">
+          <button className="bg-danger text-white px-2" onClick={() => bulkAction('cancel')}>
+            Cancel Selected
+          </button>
+          <button className="bg-primary text-white px-2" onClick={() => bulkAction('export_manifests')}>
+            Export Manifests
+          </button>
+        </div>
+      )}
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -141,6 +176,13 @@ export default function TripsList() {
           <table className="min-w-full text-left border">
             <thead>
               <tr>
+                <th className="px-2">
+                  <input
+                    type="checkbox"
+                    checked={selected.length === trips.length}
+                    onChange={(e) => setSelected(e.target.checked ? trips.map((t) => t.id) : [])}
+                  />
+                </th>
                 <th className="px-2">Date</th>
                 <th className="px-2">Destination</th>
                 <th className="px-2"></th>
@@ -149,6 +191,17 @@ export default function TripsList() {
             <tbody>
               {trips.map((t) => (
                 <tr key={t.id} className="odd:bg-gray-50 hover:bg-gray-100">
+                  <td className="px-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(t.id)}
+                      onChange={(e) =>
+                        setSelected(
+                          e.target.checked ? [...selected, t.id] : selected.filter((id) => id !== t.id),
+                        )
+                      }
+                    />
+                  </td>
                   <td className="px-2">{t.trip_date}</td>
                   <td className="px-2">{t.destination}</td>
                   <td className="px-2 space-x-2">

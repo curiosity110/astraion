@@ -13,6 +13,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import TripSerializer, ReservationSerializer, SeatAssignmentSerializer
 from .models import Trip, TripSeat, SeatAssignment, Reservation
 from apps.people.models import Client
+from .signals import push, push_dashboard
 
 
 def export_manifest(request, trip_id):
@@ -111,6 +112,50 @@ class TripViewSet(viewsets.ModelViewSet):
             return resp
         return Response(data)
 
+    @action(detail=False, methods=["post"], url_path="import", url_name="import")
+    def import_csv(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"detail": "file required"}, status=400)
+        decoded = file.read().decode()
+        reader = csv.DictReader(decoded.splitlines())
+        created = 0
+        for row in reader:
+            Trip.objects.create(
+                destination=row.get("destination", ""),
+                trip_date=row.get("trip_date"),
+                origin=row.get("origin", ""),
+                bus_id=row.get("bus"),
+            )
+            created += 1
+        if created:
+            push_dashboard({"type": "data.changed"})
+        return Response({"created": created})
+
+    @action(detail=False, methods=["post"], url_path="bulk", url_name="bulk")
+    def bulk(self, request):
+        ids = request.data.get("ids", [])
+        action = request.data.get("action")
+        qs = Trip.objects.filter(id__in=ids)
+        if action == "cancel":
+            count = qs.update(status="CANCELLED")
+            for tid in ids:
+                push(tid, {"type": "trip.cancelled", "trip_id": tid})
+            push_dashboard({"type": "data.changed"})
+            return Response({"processed": count})
+        elif action == "export_manifests":
+            import io, zipfile
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w") as z:
+                for trip in qs:
+                    response = export_manifest(request, trip.id)
+                    z.writestr(f"manifest_{trip.id}.csv", response.content.decode())
+            resp = HttpResponse(buffer.getvalue(), content_type="application/zip")
+            resp["Content-Disposition"] = "attachment; filename=manifests.zip"
+            return resp
+        else:
+            return Response({"detail": "invalid action"}, status=400)
+
     @action(detail=True, methods=["get"], url_path="report", url_name="report")
     def report(self, request, pk=None):
         trip = self.get_object()
@@ -184,6 +229,20 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if trip:
             qs = qs.filter(trip_id=trip)
         return qs
+
+    @action(detail=False, methods=["post"], url_path="bulk", url_name="bulk")
+    def bulk(self, request):
+        ids = request.data.get("ids", [])
+        action = request.data.get("action")
+        if action != "cancel":
+            return Response({"detail": "invalid action"}, status=400)
+        count = 0
+        for r in Reservation.objects.filter(id__in=ids):
+            r.status = "CANCELLED"
+            r.save()
+            SeatAssignment.objects.filter(reservation=r).delete()
+            count += 1
+        return Response({"processed": count})
 
     def partial_update(self, request, *args, **kwargs):
         reservation = self.get_object()

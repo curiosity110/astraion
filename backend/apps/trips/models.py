@@ -20,7 +20,7 @@ class Trip(models.Model):
     departure_time = models.TimeField(null=True, blank=True)
     return_time = models.TimeField(null=True, blank=True)
     price = models.DecimalField(max_digits=8, decimal_places=2, default=0)
-    bus = models.ForeignKey(Bus, on_delete=models.PROTECT, related_name="trips")
+    bus = models.ForeignKey(Bus, on_delete=models.PROTECT, related_name="trips", null=True, blank=True)
     chauffeur = models.ForeignKey(Chauffeur, null=True, blank=True, on_delete=models.SET_NULL)
     status = models.CharField(max_length=10, choices=STATUS, default="DRAFT")
     notes = models.TextField(blank=True)
@@ -28,17 +28,40 @@ class Trip(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return super().__str__() + f"{self.id} | {self.trip_date} | {self.origin} to {self.destination}"
+        # super().__str__() on a plain Model just returns "Trip object (pk)" — keep it simple:
+        return f"{self.id} | {self.trip_date} | {self.origin} to {self.destination}"
 
     def save(self, *args, **kwargs):
         creating = self._state.adding
+
+        # Read original bus_id directly from DB (so we don't need to track it in __init__)
+        orig_bus_id = None
+        if not creating and self.pk:
+            orig_bus_id = type(self).objects.filter(pk=self.pk).values_list("bus_id", flat=True).first()
+
         super().save(*args, **kwargs)
-        if creating:
-            from apps.trips.models import TripSeat  # local import
+
+        # Local import to avoid circular imports
+        from apps.trips.models import TripSeat
+
+        def build_seats():
+            # Only build when we truly have a bus AND it has a bus_type with seats_count
+            if not self.bus_id:
+                return
+            if not getattr(self.bus, "bus_type_id", None):
+                return
             capacity = self.bus.bus_type.seats_count
             TripSeat.objects.bulk_create(
                 [TripSeat(trip=self, seat_no=i) for i in range(1, capacity + 1)]
             )
+
+        if creating:
+            build_seats()
+        else:
+            # If bus changed (including removed), rebuild appropriately
+            if orig_bus_id != self.bus_id:
+                TripSeat.objects.filter(trip=self).delete()
+                build_seats()
 
 
 class PickupPoint(models.Model):

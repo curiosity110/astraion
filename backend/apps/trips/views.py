@@ -1,61 +1,57 @@
 # # apps/trips/views.py
-# from django.http import HttpResponse, Http404
-# from rest_framework.decorators import api_view
-# from django.shortcuts import get_object_or_404
-# from django.db.models import Prefetch
-# import csv
+from django.http import HttpResponse, Http404
+from rest_framework.decorators import api_view
+from django.shortcuts import get_object_or_404
+from django.db.models import Prefetch
+import csv
+from rest_framework.decorators import action
+from rest_framework import viewsets
 
+import csv
 from .serializers import TripSerializer
 from .models import Trip, TripSeat, SeatAssignment
 
-# @api_view(["GET"])
-# def export_manifest(request, trip_id):
-#     trip = get_object_or_404(Trip, pk=trip_id)
 
-#     response = HttpResponse(content_type="text/csv")
-#     response["Content-Disposition"] = (
-#         f'attachment; filename=manifest_{trip.trip_date}_{trip.destination}_{trip.id}.csv'
-#     )
+def export_manifest(request, trip_id):
+    trip = get_object_or_404(Trip, pk=trip_id)
 
-#     writer = csv.writer(response)
-#     writer.writerow(["Seat", "FirstName", "LastName", "Phone", "PassportID", "Pickup", "Status"])
+    response = HttpResponse(content_type="text/csv")
+    response[
+        "Content-Disposition"
+    ] = f'attachment; filename=manifest_{trip.trip_date}_{trip.destination}_{trip.id}.csv'
 
-#     # Pull all assignments for this trip and map by seat_no
-#     assignments = {
-#         a.seat_no: a
-#         for a in (
-#             SeatAssignment.objects.filter(trip=trip)
-#             .select_related("passenger_client")
-#             .prefetch_related("passenger_client__phones")
-#         )
-#     }
+    writer = csv.writer(response)
+    writer.writerow(["Seat", "FirstName", "LastName", "Phone", "PassportID", "Pickup", "Status"])
 
-#     # Iterate over the canonical seats so we also output empty seats
-#     for seat in TripSeat.objects.filter(trip=trip).order_by("seat_no"):
-#         a = assignments.get(seat.seat_no)
-#         if a:
-#             # Prefer inline fields (entered before client is known); fall back to client
-#             client = a.passenger_client
-#             fn = a.first_name or (client.first_name if client else "") or ""
-#             ln = a.last_name or (client.last_name if client else "") or ""
-#             phone = a.phone or (
-#                 (client.phones.filter(is_primary=True).first() or client.phones.first()).e164
-#                 if client and client.phones.exists()
-#                 else ""
-#             )
-#             passport = a.passport_id or (client.passport_id if client else "") or ""
-#             status = a.status
-#         else:
-#             fn = ln = phone = passport = status = ""
+    assignments = {
+        a.seat_no: a
+        for a in (
+            SeatAssignment.objects.filter(trip=trip)
+            .select_related("passenger_client")
+            .prefetch_related("passenger_client__phones")
+        )
+    }
 
-#         writer.writerow([seat.seat_no, fn, ln, phone, passport, "", status])
+    for seat in TripSeat.objects.filter(trip=trip).order_by("seat_no"):
+        a = assignments.get(seat.seat_no)
+        if a:
+            client = a.passenger_client
+            fn = a.first_name or (client.first_name if client else "") or ""
+            ln = a.last_name or (client.last_name if client else "") or ""
+            phone = a.phone or (
+                (client.phones.filter(is_primary=True).first() or client.phones.first()).e164
+                if client and client.phones.exists()
+                else ""
+            )
+            passport = a.passport_id or (client.passport_id if client else "") or ""
+            status = a.status
+        else:
+            fn = ln = phone = passport = status = ""
 
-#     return response
+        writer.writerow([seat.seat_no, fn, ln, phone, passport, "", status])
 
-# backend/apps/trips/views.py (excerpt)
-# backend/apps/trips/views.py (excerpt)
-from rest_framework.decorators import action
-from rest_framework import viewsets
+    return response
+
 
 class TripViewSet(viewsets.ModelViewSet):
     queryset = Trip.objects.all().order_by("-trip_date")

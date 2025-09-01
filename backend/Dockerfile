@@ -1,5 +1,4 @@
 # backend/Dockerfile
-
 FROM python:3.12-slim
 
 # Prevent Python from writing .pyc files & enable unbuffered logging

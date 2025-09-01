@@ -77,33 +77,68 @@ class TripSeat(models.Model):
 
 
 class Reservation(models.Model):
-
     STATUS = [
-    ("HOLD", "Hold"),
-    ("TENTATIVE", "Tentative"),
-    ("CONFIRMED", "Confirmed"),
-    ("CANCELLED", "Cancelled"),
-    ("NO_SHOW", "No show"),
+        ("HOLD", "Hold"),
+        ("TENTATIVE", "Tentative"),
+        ("CONFIRMED", "Confirmed"),
+        ("CANCELLED", "Cancelled"),
+        ("NO_SHOW", "No show"),
     ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name="reservations")
-    contact_client = models.ForeignKey(Client, null=True, blank=True, on_delete=models.SET_NULL)
+    trip = models.ForeignKey(
+        Trip,
+        on_delete=models.CASCADE,
+        related_name="reservations"
+    )
+    trip_seat = models.ForeignKey(
+        TripSeat,
+        on_delete=models.CASCADE,
+        related_name="reservations"
+    )
+    client = models.ForeignKey(
+        "people.Client",
+        on_delete=models.CASCADE,
+        related_name="reservations"
+    )
+
+    contact_client = models.ForeignKey(
+        Client,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="contact_reservations"
+    )
+
     quantity = models.PositiveIntegerField()
     status = models.CharField(max_length=12, choices=STATUS, default="HOLD")
     hold_expires_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_reservations")
-    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="updated_reservations")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_reservations"
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="updated_reservations"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-
     @transaction.atomic
     def allocate_seats(self):
-        from django.db.models import Q
         from apps.trips.models import SeatAssignment, TripSeat
-        taken = set(SeatAssignment.objects.filter(trip=self.trip).values_list("seat_no", flat=True))
-        free = [s.seat_no for s in TripSeat.objects.filter(trip=self.trip, blocked=False).order_by("seat_no") if s.seat_no not in taken]
+        taken = set(
+            SeatAssignment.objects.filter(trip=self.trip)
+            .values_list("seat_no", flat=True)
+        )
+        free = [
+            s.seat_no
+            for s in TripSeat.objects.filter(trip=self.trip, blocked=False).order_by("seat_no")
+            if s.seat_no not in taken
+        ]
         need = self.quantity - SeatAssignment.objects.filter(reservation=self).count()
         for seat_no in free[:need]:
             SeatAssignment.objects.create(trip=self.trip, seat_no=seat_no, reservation=self)

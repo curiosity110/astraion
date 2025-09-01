@@ -33,8 +33,8 @@ export default function TripsList() {
     if (destination) params.append('destination', destination);
     if (dateFrom) params.append('date_from', dateFrom);
     if (dateTo) params.append('date_to', dateTo);
-    api<Trip[]>(`/api/trips/?${params.toString()}`)
-      .then(setTrips)
+    api<any>(`/api/trips/?${params.toString()}`)
+      .then((d) => setTrips(Array.isArray(d) ? d : d?.results || []))
       .catch(() => setTrips([]))
       .finally(() => setLoading(false));
   };

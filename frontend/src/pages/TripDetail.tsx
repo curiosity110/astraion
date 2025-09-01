@@ -50,8 +50,9 @@ export default function TripDetail({ id }: { id: string }) {
   const fetchTrip = () => api<Trip>(`/api/trips/${id}/`).then(setTrip);
   const fetchSeats = (url?: string) => api<SeatAssignment[]>(url || `/api/trips/${id}/seats/`).then(setSeats);
   const fetchReservations = () =>
-    api<Reservation[]>(`/api/reservations/`).then((data) => {
-      setReservations(data.filter((r) => r.trip === id));
+    api<any>(`/api/reservations/`).then((data) => {
+      const list: Reservation[] = Array.isArray(data) ? data : data?.results || [];
+      setReservations(list.filter((r) => r.trip === id));
     });
   const fetchReport = () => api<Report>(`/api/trips/${id}/report/`).then(setReport);
 
@@ -60,13 +61,14 @@ export default function TripDetail({ id }: { id: string }) {
     fetchSeats();
     fetchReservations();
     fetchReport();
-    api<Client[]>('/api/clients/').then(setClients);
+    api<any>('/api/clients/').then((d) => setClients(Array.isArray(d) ? d : d?.results || []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
     if (!trip) return;
-    const ws = new WebSocket(`ws://localhost:8000/ws/trip/${id}/`);
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${window.location.host}/ws/trip/${id}/`);
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);

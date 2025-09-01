@@ -36,7 +36,11 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: ["npm", "run", "dev", "--", "--host"]
+    environment:
+      - VITE_BACKEND_HOST=web
+      - CHOKIDAR_USEPOLLING=1
+      - WATCHPACK_POLLING=true
+    command: ["sh", "-lc", "(npm ci || npm install) && npm run dev -- --host"]
     ports:
       - "5173:5173"
 

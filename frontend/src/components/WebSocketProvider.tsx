@@ -22,7 +22,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     let ws: WebSocket | null = null;
     let timer: number | null = null;
 
-    const WS_URL = 'ws://localhost:8000/ws/dashboard/';
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const WS_URL = `${proto}://${window.location.host}/ws/dashboard/`;
 
     const connect = () => {
       try {

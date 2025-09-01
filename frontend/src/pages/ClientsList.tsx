@@ -27,8 +27,8 @@ export default function ClientsList() {
 
   const fetchClients = () => {
     setLoading(true);
-    api<Client[]>(`/api/clients/?search=${encodeURIComponent(search)}`)
-      .then(setClients)
+    api<any>(`/api/clients/?search=${encodeURIComponent(search)}`)
+      .then((d) => setClients(Array.isArray(d) ? d : d?.results || []))
       .catch(() => setClients([]))
       .finally(() => setLoading(false));
   };

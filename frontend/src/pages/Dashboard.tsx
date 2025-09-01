@@ -29,9 +29,15 @@ export default function Dashboard() {
   const [clients, setClients] = useState<Client[]>([]);
 
   const fetchAll = () => {
-    api<Summary>('/api/dashboard/summary').then(setSummary);
-    api<{ trips: Trip[] }>('/api/dashboard/upcoming-trips').then((d) => setTrips(d.trips));
-    api<{ clients: Client[] }>('/api/dashboard/recent-clients').then((d) => setClients(d.clients));
+    api<Summary>('/api/dashboard/summary')
+      .then((s) => setSummary(s))
+      .catch(() => setSummary({ total_clients: 0, total_trips: 0, active_reservations: 0, seats_available_today: 0 }));
+    api<{ trips: Trip[] }>('/api/dashboard/upcoming-trips')
+      .then((d) => setTrips(d?.trips || []))
+      .catch(() => setTrips([]));
+    api<{ clients: Client[] }>('/api/dashboard/recent-clients')
+      .then((d) => setClients(d?.clients || []))
+      .catch(() => setClients([]));
   };
 
   useEffect(() => {

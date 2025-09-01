@@ -33,7 +33,7 @@ router.register(r"assignments", SeatAssignmentViewSet, basename="assignment")
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", health),
-    path("api/export/trips/<uuid:trip_id>/manifest.csv", export_manifest),
+    path("api/export/trips/<uuid:trip_id>/manifest.csv", export_manifest, name="export_manifest"),
     path("api/dashboard/summary", dashboard_views.summary),
     path("api/dashboard/upcoming-trips", dashboard_views.upcoming_trips),
     path("api/dashboard/recent-clients", dashboard_views.recent_clients),

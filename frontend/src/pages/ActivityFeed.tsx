@@ -20,7 +20,8 @@ export default function ActivityFeed() {
   }, []);
 
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:8000/ws/clients/');
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${window.location.host}/ws/clients/`);
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);

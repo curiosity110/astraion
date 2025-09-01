@@ -2,9 +2,9 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: astraion_db
-      POSTGRES_USER: astraion_user
-      POSTGRES_PASSWORD: astraion_pw
+      POSTGRES_DB: astraion
+      POSTGRES_USER: astraion
+      POSTGRES_PASSWORD: astraion
     ports:
       - "5433:5432"
     volumes:
@@ -36,7 +36,11 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: ["npm", "run", "dev", "--", "--host"]
+    environment:
+      - VITE_BACKEND_HOST=web
+      - CHOKIDAR_USEPOLLING=1
+      - WATCHPACK_POLLING=true
+    command: ["sh", "-lc", "(npm ci || npm install) && npm run dev -- --host"]
     ports:
       - "5173:5173"
 

@@ -68,3 +68,25 @@ Thumbs.db
 
 make_zip.py
 make_zip.sh
+
+
+# Block binary screenshot files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.svg
+*.pdf
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+*.exe
+*.dll
+*.bin
+*.dat
+*.db
+*.sqlite3

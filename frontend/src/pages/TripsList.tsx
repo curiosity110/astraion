@@ -20,10 +20,12 @@ export default function TripsList() {
     if (destination) params.append('destination', destination);
     if (dateFrom) params.append('date_from', dateFrom);
     if (dateTo) params.append('date_to', dateTo);
-    api<Trip[]>(`/api/trips/?${params.toString()}`)
-      .then(setTrips)
-      .catch(() => setTrips([]));
-  };
+    api<{ trips: Trip[] }>('/api/dashboard/')
+    .then((d) => setTrips(d?.trips ?? []))
+    .catch((err) => {
+      console.error("Failed to fetch trips", err);
+      setTrips([]);
+    });
 
   useEffect(() => {
     fetchTrips();

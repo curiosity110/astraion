@@ -55,6 +55,40 @@ class ClientViewSet(viewsets.ModelViewSet):
             return resp
         return Response(data)
 
+    @action(detail=False, methods=["post"], url_path="import", url_name="import")
+    def import_csv(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"detail": "file required"}, status=400)
+        decoded = file.read().decode()
+        reader = csv.DictReader(decoded.splitlines())
+        created = 0
+        for row in reader:
+            Client.objects.create(
+                first_name=row.get("first_name", ""),
+                last_name=row.get("last_name", ""),
+                passport_id=row.get("passport_id", ""),
+            )
+            created += 1
+        if created:
+            push({"type": "client.imported", "count": created})
+        return Response({"created": created})
+
+    @action(detail=False, methods=["post"], url_path="bulk", url_name="bulk")
+    def bulk(self, request):
+        ids = request.data.get("ids", [])
+        action = request.data.get("action")
+        qs = Client.objects.filter(id__in=ids)
+        if action == "delete":
+            count = qs.count()
+            qs.delete()
+        elif action == "inactive":
+            count = qs.update(is_active=False)
+        else:
+            return Response({"detail": "invalid action"}, status=400)
+        push({"type": "client.bulk", "action": action, "ids": [str(i) for i in ids]})
+        return Response({"processed": count})
+
     @action(detail=True, methods=["patch"], url_path="tags", url_name="tags")
     def set_tags(self, request, pk=None):
         client = self.get_object()

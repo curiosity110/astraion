@@ -22,6 +22,8 @@ export default function ClientsList() {
   const [passport, setPassport] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
 
   const fetchClients = () => {
     setLoading(true);
@@ -88,6 +90,25 @@ export default function ClientsList() {
     fetchClients();
   };
 
+  const bulkAction = async (action: string) => {
+    await api('/api/clients/bulk/', {
+      method: 'POST',
+      body: JSON.stringify({ ids: selected, action }),
+    });
+    setSelected([]);
+    fetchClients();
+  };
+
+  const importCsv = async () => {
+    if (!csvFile) return;
+    const form = new FormData();
+    form.append('file', csvFile);
+    await fetch('/api/clients/import/', { method: 'POST', body: form });
+    setCsvFile(null);
+    (document.getElementById('client-csv') as HTMLInputElement).value = '';
+    fetchClients();
+  };
+
   return (
     <Layout title="Clients" breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Clients' }]}>
       <div className="flex flex-col md:flex-row gap-2">
@@ -100,6 +121,10 @@ export default function ClientsList() {
         <button className="bg-primary text-white px-4 py-2" onClick={openCreate}>
           Add Client
         </button>
+        <input id="client-csv" type="file" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} />
+        <button className="bg-primary text-white px-4 py-2" onClick={importCsv}>
+          Import CSV
+        </button>
         <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/clients/export?format=csv`}>
           Export CSV
         </a>
@@ -107,6 +132,16 @@ export default function ClientsList() {
           Export JSON
         </a>
       </div>
+      {selected.length > 0 && (
+        <div className="my-2 space-x-2">
+          <button className="bg-danger text-white px-2" onClick={() => bulkAction('delete')}>
+            Delete Selected
+          </button>
+          <button className="bg-primary text-white px-2" onClick={() => bulkAction('inactive')}>
+            Mark Inactive
+          </button>
+        </div>
+      )}
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -120,12 +155,34 @@ export default function ClientsList() {
           <table className="min-w-full text-left border">
             <thead>
               <tr>
+                <th className="px-2">
+                  <input
+                    type="checkbox"
+                    checked={selected.length === clients.length}
+                    onChange={(e) =>
+                      setSelected(e.target.checked ? clients.map((c) => c.id) : [])
+                    }
+                  />
+                </th>
                 <th className="px-2">Name</th>
               </tr>
             </thead>
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id} className="odd:bg-gray-50 hover:bg-gray-100">
+                  <td className="px-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(c.id)}
+                      onChange={(e) =>
+                        setSelected(
+                          e.target.checked
+                            ? [...selected, c.id]
+                            : selected.filter((id) => id !== c.id),
+                        )
+                      }
+                    />
+                  </td>
                   <td className="px-2 space-x-2">
                     <a className="text-primary underline" href={c.links?.['ui.self'] || `/clients/${c.id}`}>
                       {c.first_name} {c.last_name}

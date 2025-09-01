@@ -7,6 +7,8 @@ from django.contrib.auth import get_user_model
 from apps.fleet.models import BusType, Bus
 from apps.people.models import Client
 from .models import Trip, TripSeat, SeatAssignment, Reservation
+from django.core.files.uploadedfile import SimpleUploadedFile
+from unittest.mock import patch
 
 class TestTripSeats(TestCase):
     def setUp(self):
@@ -160,3 +162,80 @@ class TestTripCRUD(TestCase):
         detail = reverse("trip-detail", args=[tid])
         resp = self.client.delete(detail)
         self.assertEqual(resp.status_code, 409)
+
+
+class TestTripImportBulk(TestCase):
+    def setUp(self):
+        bt = BusType.objects.create(name="Mini", seats_count=2)
+        self.bus = Bus.objects.create(plate="B10", bus_type=bt)
+        self.user = get_user_model().objects.create_user("ti", password="p")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_import_and_bulk(self):
+        csv_data = (
+            f"destination,trip_date,origin,bus\nD1,{date.today()},O1,{self.bus.id}\n"
+        ).encode()
+        file = SimpleUploadedFile("trips.csv", csv_data, content_type="text/csv")
+        resp = self.client.post(reverse("trip-import"), {"file": file}, format="multipart")
+        self.assertEqual(resp.status_code, 200)
+        tid = Trip.objects.first().id
+
+        resp2 = self.client.post(
+            reverse("trip-bulk"),
+            {"ids": [str(tid)], "action": "cancel"},
+            format="json",
+        )
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(Trip.objects.get(id=tid).status, "CANCELLED")
+
+        resp3 = self.client.post(
+            reverse("trip-bulk"),
+            {"ids": [str(tid)], "action": "export_manifests"},
+            format="json",
+        )
+        self.assertEqual(resp3.status_code, 200)
+        self.assertEqual(resp3["Content-Type"], "application/zip")
+
+
+class TestReservationBulkCancel(TestCase):
+    def setUp(self):
+        bt = BusType.objects.create(name="Mini", seats_count=2)
+        bus = Bus.objects.create(plate="B11", bus_type=bt)
+        self.trip = Trip.objects.create(trip_date=date.today(), origin="A", destination="B", bus=bus)
+        self.contact = Client.objects.create(first_name="R", last_name="X")
+        self.user = get_user_model().objects.create_user("rb", password="p")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        url = reverse("trip-reserve", args=[self.trip.id])
+        self.client.post(url, {"quantity": 1, "contact_client_id": str(self.contact.id)}, format="json")
+        self.res_id = Reservation.objects.first().id
+
+    def test_bulk_cancel(self):
+        resp = self.client.post(
+            reverse("reservation-bulk"),
+            {"ids": [str(self.res_id)], "action": "cancel"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(Reservation.objects.get(id=self.res_id).status, "CANCELLED")
+
+
+class TestSeatDragDropSignal(TestCase):
+    def setUp(self):
+        bt = BusType.objects.create(name="Mini", seats_count=2)
+        bus = Bus.objects.create(plate="B12", bus_type=bt)
+        self.trip = Trip.objects.create(trip_date=date.today(), origin="A", destination="B", bus=bus)
+        self.contact = Client.objects.create(first_name="S", last_name="Y")
+        self.user = get_user_model().objects.create_user("sd", password="p")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        url = reverse("trip-reserve", args=[self.trip.id])
+        self.client.post(url, {"quantity": 1, "contact_client_id": str(self.contact.id)}, format="json")
+        self.assignment = SeatAssignment.objects.first()
+
+    def test_drag_drop_triggers_signal(self):
+        with patch("apps.trips.signals.push") as mock_push:
+            url_assign = reverse("assignment-detail", args=[self.assignment.id])
+            self.client.patch(url_assign, {"seat_no": 2}, format="json")
+            self.assertTrue(mock_push.called)

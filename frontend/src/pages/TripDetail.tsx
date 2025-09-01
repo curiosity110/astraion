@@ -22,6 +22,8 @@ type SeatAssignment = {
   status: string;
 };
 
+type Client = { id: string; first_name: string; last_name: string };
+
 type Reservation = {
   id: string;
   trip: string;
@@ -42,6 +44,8 @@ export default function TripDetail({ id }: { id: string }) {
   const [selectedSeat, setSelectedSeat] = useState<SeatAssignment | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [tab, setTab] = useState<'detail' | 'report'>('detail');
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedRes, setSelectedRes] = useState<string[]>([]);
 
   const fetchTrip = () => api<Trip>(`/api/trips/${id}/`).then(setTrip);
   const fetchSeats = (url?: string) => api<SeatAssignment[]>(url || `/api/trips/${id}/seats/`).then(setSeats);
@@ -56,6 +60,7 @@ export default function TripDetail({ id }: { id: string }) {
     fetchSeats();
     fetchReservations();
     fetchReport();
+    api<Client[]>('/api/clients/').then(setClients);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -124,6 +129,15 @@ export default function TripDetail({ id }: { id: string }) {
     await updateReservation(resId, { status: 'CANCELLED' }, false);
   };
 
+  const bulkCancelReservations = async () => {
+    await api('/api/reservations/bulk/', {
+      method: 'POST',
+      body: JSON.stringify({ ids: selectedRes, action: 'cancel' }),
+    });
+    setSelectedRes([]);
+    fetchReservations();
+  };
+
   const updateAssignment = async (assignId: string, data: Partial<SeatAssignment>) => {
     await api(`/api/assignments/${assignId}/`, {
       method: 'PATCH',
@@ -155,13 +169,25 @@ export default function TripDetail({ id }: { id: string }) {
         <div className="space-y-4">
           <div>
             <h2 className="text-xl font-semibold">Seat Map</h2>
-            <div className="grid grid-cols-4 gap-2 w-64">
+            <div className="grid grid-cols-4 gap-2 w-64" onDragOver={(e) => e.preventDefault()}>
               {seatNumbers.map((n) => {
                 const a = seats.find((s) => s.seat_no === n);
                 return (
                   <div
                     key={n}
-                    className={`p-2 text-center border rounded cursor-pointer ${a ? 'bg-primary text-white' : 'bg-white'}`}
+                    className={`p-2 text-center border rounded ${a ? 'bg-primary text-white' : 'bg-white'}`}
+                    draggable={!!a}
+                    onDragStart={(e) =>
+                      a && e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'seat', id: a.id }))
+                    }
+                    onDrop={(e) => {
+                      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                      if (data.type === 'seat') {
+                        updateAssignment(data.id, { seat_no: n });
+                      } else if (data.type === 'client' && a) {
+                        updateAssignment(a.id, { passenger_client_id: data.id });
+                      }
+                    }}
                     onClick={() => setSelectedSeat(a || null)}
                   >
                     {n}
@@ -174,6 +200,35 @@ export default function TripDetail({ id }: { id: string }) {
                 );
               })}
             </div>
+            <div
+              className="mt-2 p-2 border w-64 text-center"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (data.type === 'seat') {
+                  updateAssignment(data.id, { passenger_client_id: null, first_name: '', last_name: '', phone: '', passport_id: '' });
+                }
+              }}
+            >
+              Drop here to release
+            </div>
+            <div className="mt-4 space-y-1">
+              <h3 className="font-semibold">Clients</h3>
+              <ul className="max-h-32 overflow-y-auto border p-1">
+                {clients.map((c) => (
+                  <li
+                    key={c.id}
+                    draggable
+                    onDragStart={(e) =>
+                      e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'client', id: c.id }))
+                    }
+                    className="p-1 hover:bg-gray-100 cursor-move"
+                  >
+                    {c.first_name} {c.last_name}
+                  </li>
+                ))}
+              </ul>
+            </div>
             {selectedSeat && (
               <SeatForm
                 seat={selectedSeat}
@@ -184,6 +239,13 @@ export default function TripDetail({ id }: { id: string }) {
           </div>
           <div>
             <h2 className="text-xl font-semibold">Reservations</h2>
+          {selectedRes.length > 0 && (
+            <div className="mb-2">
+              <button className="bg-danger text-white px-2" onClick={bulkCancelReservations}>
+                Cancel Selected
+              </button>
+            </div>
+          )}
           <ul className="space-y-2">
             {reservations.filter((r) => r.status !== 'CANCELLED').map((r) => (
               <ReservationItem
@@ -191,6 +253,12 @@ export default function TripDetail({ id }: { id: string }) {
                 reservation={r}
                 onSave={updateReservation}
                 onCancel={cancelReservation}
+                selected={selectedRes.includes(r.id)}
+                onSelect={(checked) =>
+                  setSelectedRes(
+                    checked ? [...selectedRes, r.id] : selectedRes.filter((i) => i !== r.id),
+                  )
+                }
               />
             ))}
           </ul>
@@ -306,6 +374,8 @@ function ReservationItem({
   reservation,
   onSave,
   onCancel,
+  selected,
+  onSelect,
 }: {
   reservation: Reservation;
   onSave: (
@@ -314,6 +384,8 @@ function ReservationItem({
     override: boolean,
   ) => Promise<void>;
   onCancel: (id: string) => void;
+  selected: boolean;
+  onSelect: (checked: boolean) => void;
 }) {
   const [quantity, setQuantity] = useState(reservation.quantity);
   const [status, setStatus] = useState(reservation.status);
@@ -340,6 +412,7 @@ function ReservationItem({
     <li className="border p-2 rounded space-y-2">
       {error && <div className="text-danger text-sm">{error}</div>}
       <div className="flex gap-2">
+        <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} />
         <input
           type="number"
           className="border p-1 w-16"

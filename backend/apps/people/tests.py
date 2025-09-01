@@ -1,6 +1,7 @@
 from django.urls import reverse
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from datetime import date
 from apps.fleet.models import BusType, Bus
 from apps.trips.models import Trip, Reservation, SeatAssignment
@@ -110,3 +111,26 @@ class TestClientCRUD(APITestCase):
         self.assertEqual(resp.status_code, 204)
         c = Client.objects.get(id=cid)
         self.assertFalse(c.is_active)
+
+
+class TestClientImportExportBulk(APITestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("csv", password="p")
+        self.client.force_authenticate(self.user)
+
+    def test_import_export_bulk(self):
+        csv_data = b"first_name,last_name,passport_id\nA,B,P1\nC,D,P2\n"
+        file = SimpleUploadedFile("clients.csv", csv_data, content_type="text/csv")
+        url = reverse("client-import")
+        resp = self.client.post(url, {"file": file}, format="multipart")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(Client.objects.count(), 2)
+
+        export = self.client.get(reverse("client-export") + "?format=csv")
+        self.assertIn("A,B", export.content.decode())
+
+        ids = list(Client.objects.values_list("id", flat=True))
+        bulk_url = reverse("client-bulk")
+        resp = self.client.post(bulk_url, {"ids": ids, "action": "inactive"}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(Client.objects.filter(is_active=False).count(), 2)

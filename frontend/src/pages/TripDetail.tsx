@@ -28,6 +28,7 @@ type Reservation = {
   quantity: number;
   status: string;
   contact_client: string | null;
+  notes: string;
 };
 type Report = {
   stats: { total: number; booked: number; available: number; cancellations: number };
@@ -64,10 +65,13 @@ export default function TripDetail({ id }: { id: string }) {
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        if (['seat.assigned', 'seat.released', 'reservation.updated', 'client.updated'].includes(data.type)) {
+        if (
+          ['seat.assigned', 'seat.released', 'reservation.updated', 'client.updated', 'trip.updated', 'trip.deleted'].includes(data.type)
+        ) {
           fetchSeats(trip.links?.['api.seats']);
           fetchReservations();
           fetchReport();
+          if (data.type === 'trip.updated') fetchTrip();
         }
       } catch (err) {
         console.error(err);
@@ -104,7 +108,7 @@ export default function TripDetail({ id }: { id: string }) {
 
   const updateReservation = async (
     resId: string,
-    data: Partial<{ quantity: number; status: string; contact_client_id: string | null }>,
+    data: Partial<{ quantity: number; status: string; contact_client_id: string | null; notes: string }>,
     override: boolean,
   ) => {
     await api(`/api/reservations/${resId}/`, {
@@ -180,16 +184,16 @@ export default function TripDetail({ id }: { id: string }) {
           </div>
           <div>
             <h2 className="text-xl font-semibold">Reservations</h2>
-            <ul className="space-y-2">
-              {reservations.filter((r) => r.status !== 'CANCELLED').map((r) => (
-                <ReservationItem
-                  key={r.id}
-                  reservation={r}
-                  onSave={updateReservation}
-                  onCancel={cancelReservation}
-                />
-              ))}
-            </ul>
+          <ul className="space-y-2">
+            {reservations.filter((r) => r.status !== 'CANCELLED').map((r) => (
+              <ReservationItem
+                key={r.id}
+                reservation={r}
+                onSave={updateReservation}
+                onCancel={cancelReservation}
+              />
+            ))}
+          </ul>
           </div>
           <div>
             <h2 className="text-xl font-semibold">Reserve a seat</h2>
@@ -306,7 +310,7 @@ function ReservationItem({
   reservation: Reservation;
   onSave: (
     id: string,
-    data: Partial<{ quantity: number; status: string; contact_client_id: string | null }>,
+    data: Partial<{ quantity: number; status: string; contact_client_id: string | null; notes: string }>,
     override: boolean,
   ) => Promise<void>;
   onCancel: (id: string) => void;
@@ -314,12 +318,13 @@ function ReservationItem({
   const [quantity, setQuantity] = useState(reservation.quantity);
   const [status, setStatus] = useState(reservation.status);
   const [contact, setContact] = useState(reservation.contact_client || '');
+  const [notes, setNotes] = useState(reservation.notes || '');
   const [override, setOverride] = useState(false);
   const [error, setError] = useState('');
 
   const save = async () => {
     try {
-      await onSave(reservation.id, { quantity, status, contact_client_id: contact || null }, override);
+      await onSave(reservation.id, { quantity, status, contact_client_id: contact || null, notes }, override);
       setError('');
     } catch (e) {
       const err = e as { status?: number; message?: string };
@@ -343,14 +348,23 @@ function ReservationItem({
           onChange={(e) => setQuantity(Number(e.target.value))}
         />
         <select className="border p-1" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="ACTIVE">ACTIVE</option>
+          <option value="HOLD">HOLD</option>
+          <option value="TENTATIVE">TENTATIVE</option>
+          <option value="CONFIRMED">CONFIRMED</option>
           <option value="CANCELLED">CANCELLED</option>
+          <option value="NO_SHOW">NO_SHOW</option>
         </select>
         <input
           className="border p-1 flex-1"
           placeholder="Contact Client ID"
           value={contact}
           onChange={(e) => setContact(e.target.value)}
+        />
+        <input
+          className="border p-1 flex-1"
+          placeholder="Notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
         />
         <button className="bg-primary text-white px-2" onClick={save}>
           Save

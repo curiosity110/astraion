@@ -12,6 +12,7 @@ type Client = {
   phones: Phone[];
   tags: string[];
   links?: Record<string, string>;
+  notes?: string;
 };
 type Reservation = {
   id: string;
@@ -44,6 +45,13 @@ export default function ClientProfile({ id }: { id: string }) {
   const [noteAuthor, setNoteAuthor] = useState("");
   const [noteText, setNoteText] = useState("");
   const [tab, setTab] = useState<"profile" | "history">("profile");
+  const [editing, setEditing] = useState(false);
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
+  const [email, setEmail] = useState('');
+  const [passport, setPassport] = useState('');
+  const [phone, setPhone] = useState('');
+  const [notesField, setNotesField] = useState('');
 
   const fetchClient = () =>
     api<Client>(`/api/clients/${id}/`).then((c) => {
@@ -76,6 +84,34 @@ export default function ClientProfile({ id }: { id: string }) {
   const removeTag = (t: string) => {
     if (!client) return;
     updateTags(client.tags.filter((x) => x !== t));
+  };
+
+  const startEdit = () => {
+    if (!client) return;
+    setFirst(client.first_name);
+    setLast(client.last_name);
+    setEmail(client.email);
+    setPassport(client.passport_id);
+    setPhone(client.phones?.[0]?.e164 || '');
+    setNotesField((client as any).notes || '');
+    setEditing(true);
+  };
+
+  const saveProfile = () => {
+    api(`/api/clients/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        first_name: first,
+        last_name: last,
+        email,
+        passport_id: passport,
+        notes: notesField,
+        phones: phone ? [{ e164: phone }] : [],
+      }),
+    }).then(() => {
+      setEditing(false);
+      fetchClient();
+    });
   };
 
   const addNote = () => {
@@ -143,9 +179,27 @@ export default function ClientProfile({ id }: { id: string }) {
           {tab === "profile" ? (
             <div className="space-y-4">
               <div className="space-y-1">
-                <p>Email: {client.email}</p>
-                <p>Passport: {client.passport_id}</p>
-                <p>Phones: {client.phones?.map((p) => p.e164).join(", ")}</p>
+                {editing ? (
+                  <>
+                    <input className="border px-2" value={first} onChange={(e) => setFirst(e.target.value)} placeholder="First" />
+                    <input className="border px-2" value={last} onChange={(e) => setLast(e.target.value)} placeholder="Last" />
+                    <input className="border px-2" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+                    <input className="border px-2" value={passport} onChange={(e) => setPassport(e.target.value)} placeholder="Passport" />
+                    <input className="border px-2" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
+                    <textarea className="border px-2" value={notesField} onChange={(e) => setNotesField(e.target.value)} placeholder="Notes" />
+                    <div className="space-x-2">
+                      <button className="bg-primary text-white px-2" onClick={saveProfile}>Save</button>
+                      <button className="px-2" onClick={() => setEditing(false)}>Cancel</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p>Email: {client.email}</p>
+                    <p>Passport: {client.passport_id}</p>
+                    <p>Phones: {client.phones?.map((p) => p.e164).join(", ")}</p>
+                    <button className="text-sm text-primary" onClick={startEdit}>Edit</button>
+                  </>
+                )}
               </div>
               <div>
                 <h2 className="text-xl font-semibold">Tags</h2>

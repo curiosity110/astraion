@@ -91,16 +91,6 @@ class Reservation(models.Model):
         on_delete=models.CASCADE,
         related_name="reservations"
     )
-    trip_seat = models.ForeignKey(
-        TripSeat,
-        on_delete=models.CASCADE,
-        related_name="reservations"
-    )
-    client = models.ForeignKey(
-        "people.Client",
-        on_delete=models.CASCADE,
-        related_name="reservations"
-    )
 
     contact_client = models.ForeignKey(
         Client,
@@ -144,10 +134,10 @@ class Reservation(models.Model):
             SeatAssignment.objects.create(trip=self.trip, seat_no=seat_no, reservation=self)
 
     def __str__(self):
-        return f"{self.id} | {self.trip_seat} | {self.client} | {self.status}"
+        return f"{self.id} | {self.trip} | {self.status}"
 
     class Meta:
-        ordering = ["trip_seat"]
+        ordering = ["created_at"]
 
 class SeatAssignment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

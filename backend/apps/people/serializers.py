@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, Phone
+from .models import Client, Phone, ClientNote
 from django.conf import settings
 from django.urls import reverse
 import phonenumbers
@@ -29,7 +29,7 @@ class ClientSerializer(serializers.ModelSerializer):
         model = Client
         fields = (
             "id","first_name","last_name","birth_date","nationality",
-            "passport_id","email","notes","is_active","created_at","updated_at",
+            "passport_id","email","notes","tags","is_active","created_at","updated_at",
             "phones","links",
         )
         read_only_fields = ("created_at","updated_at")
@@ -67,4 +67,10 @@ class ClientSerializer(serializers.ModelSerializer):
             "api.history": abs_url("client-history", obj.id),
             "ui.self": f"{ui}/clients/{obj.id}",
         }
+
+
+class ClientNoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClientNote
+        fields = ("id", "author", "text", "created_at")
 

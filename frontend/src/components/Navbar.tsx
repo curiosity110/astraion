@@ -4,6 +4,7 @@ export default function Navbar() {
       <a href="/dashboard" className="font-semibold">Dashboard</a>
       <a href="/clients" className="font-semibold">Clients</a>
       <a href="/trips" className="font-semibold">Trips</a>
+      <a href="/activity" className="font-semibold">Activity</a>
     </nav>
   );
 }

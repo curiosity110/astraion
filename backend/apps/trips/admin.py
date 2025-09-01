@@ -46,7 +46,11 @@ class TripSeatAdmin(admin.ModelAdmin):
 
 @admin.register(Reservation)
 class ReservationAdmin(admin.ModelAdmin):
-    list_display = ("trip_seat", "client", "status", "created_at", "updated_at")
-    list_filter = ("status", "created_at")
-    search_fields = ("client__first_name", "client__last_name", "client__passport_id")
+    list_display = ("trip", "contact_client", "status", "quantity", "created_at", "updated_at")
+    list_filter = ("status", "trip", "created_at")
+    search_fields = (
+        "contact_client__first_name",
+        "contact_client__last_name",
+        "contact_client__passport_id",
+    )
     date_hierarchy = "created_at"

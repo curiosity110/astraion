@@ -1,6 +1,5 @@
 import uuid
 from django.db import models
-from phonenumber_field.modelfields import PhoneNumberField
 
 
 class Client(models.Model):
@@ -28,7 +27,7 @@ class Client(models.Model):
 class Phone(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name="phones")
-    e164 = PhoneNumberField()
+    e164 = models.CharField(max_length=40)
     label = models.CharField(max_length=30, blank=True)
     is_primary = models.BooleanField(default=False)
 

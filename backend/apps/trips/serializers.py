@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.urls import reverse
 from django.conf import settings
-from .models import Trip
+from .models import Trip, Reservation, SeatAssignment
 
 class TripSerializer(serializers.ModelSerializer):
     links = serializers.SerializerMethodField()
@@ -24,3 +24,28 @@ class TripSerializer(serializers.ModelSerializer):
             "ui.self": f"{ui}/trips/{obj.id}",
             "ui.manifest": f"{ui}/trips/{obj.id}?action=download-manifest",
         }
+
+
+class ReservationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reservation
+        fields = ("id", "trip", "contact_client", "quantity", "status", "notes")
+        read_only_fields = ("trip",)
+
+
+class SeatAssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SeatAssignment
+        fields = (
+            "id",
+            "trip",
+            "seat_no",
+            "reservation",
+            "passenger_client",
+            "first_name",
+            "last_name",
+            "phone",
+            "passport_id",
+            "status",
+        )
+        read_only_fields = ("trip", "reservation")

@@ -1,8 +1,21 @@
 from rest_framework import serializers
 from .models import Client, Phone
 from django.conf import settings
+import phonenumbers
+
+
+class RelaxedPhoneField(serializers.CharField):
+    def to_internal_value(self, data):
+        data = super().to_internal_value(data)
+        try:
+            num = phonenumbers.parse(data, None)
+            return phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)
+        except Exception:
+            return data
 
 class PhoneSerializer(serializers.ModelSerializer):
+    e164 = RelaxedPhoneField()
+
     class Meta:
         model = Phone
         fields = ("id", "e164", "label", "is_primary")

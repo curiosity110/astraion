@@ -6,10 +6,10 @@ from django.db.models import Prefetch
 import csv
 import json
 from rest_framework.decorators import action
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
 
-import csv
 from .serializers import TripSerializer, ReservationSerializer, SeatAssignmentSerializer
 from .models import Trip, TripSeat, SeatAssignment, Reservation
 from apps.people.models import Client
@@ -59,12 +59,49 @@ def export_manifest(request, trip_id):
 class TripViewSet(viewsets.ModelViewSet):
     queryset = Trip.objects.all().order_by("-trip_date")
     serializer_class = TripSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ["destination"]
+    filterset_fields = ["trip_date", "status"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        date_from = self.request.query_params.get("date_from")
+        date_to = self.request.query_params.get("date_to")
+        if date_from and date_to:
+            qs = qs.filter(trip_date__range=[date_from, date_to])
+        elif date_from:
+            qs = qs.filter(trip_date__gte=date_from)
+        elif date_to:
+            qs = qs.filter(trip_date__lte=date_to)
+        dest = self.request.query_params.get("destination")
+        if dest:
+            qs = qs.filter(destination__icontains=dest)
+        return qs
 
     @action(detail=True, methods=["get"], url_path="seats", url_name="seats")
     def seats(self, request, pk=None):
         trip = self.get_object()
         assignments = SeatAssignment.objects.filter(trip=trip)
         data = SeatAssignmentSerializer(assignments, many=True).data
+        return Response(data)
+
+    @action(detail=False, methods=["get"], url_path="export", url_name="export")
+    def export(self, request):
+        fmt = request.query_params.get("format", "json")
+        qs = self.get_queryset()
+        if fmt == "csv":
+            resp = HttpResponse(content_type="text/csv")
+            resp["Content-Disposition"] = "attachment; filename=trips.csv"
+            writer = csv.writer(resp)
+            writer.writerow(["ID", "Date", "Origin", "Destination"])
+            for t in qs:
+                writer.writerow([t.id, t.trip_date, t.origin, t.destination])
+            return resp
+        data = TripSerializer(qs, many=True, context={"request": request}).data
+        if fmt == "json":
+            resp = HttpResponse(json.dumps(data, default=str), content_type="application/json")
+            resp["Content-Disposition"] = "attachment; filename=trips.json"
+            return resp
         return Response(data)
 
     @action(detail=True, methods=["get"], url_path="report", url_name="report")

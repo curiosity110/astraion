@@ -11,22 +11,77 @@ type Trip = {
 
 export default function TripsList() {
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [destination, setDestination] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const fetchTrips = () => {
+    const params = new URLSearchParams();
+    if (destination) params.append('destination', destination);
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    api<Trip[]>(`/api/trips/?${params.toString()}`)
+      .then(setTrips)
+      .catch(() => setTrips([]));
+  };
 
   useEffect(() => {
-    api<Trip[]>('/api/trips/').then(setTrips).catch(() => setTrips([]));
-  }, []);
+    fetchTrips();
+  }, [destination, dateFrom, dateTo]);
+
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:8000/ws/dashboard/');
+    ws.onmessage = fetchTrips;
+    return () => ws.close();
+  }, [destination, dateFrom, dateTo]);
 
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-2xl font-bold">Trips</h1>
-      <ul className="space-y-2">
-        {trips.map((t) => (
-          <li key={t.id} className="border p-2 rounded">
-            <div>{t.trip_date} {t.origin} → {t.destination}</div>
-            <a className="text-primary underline" href={t.links?.['ui.self'] || `/trips/${t.id}`}>View</a>
-          </li>
-        ))}
-      </ul>
+      <div className="flex flex-col md:flex-row gap-2">
+        <input
+          className="border p-2 flex-1"
+          placeholder="Destination"
+          value={destination}
+          onChange={(e) => setDestination(e.target.value)}
+        />
+        <input
+          className="border p-2"
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+        />
+        <input
+          className="border p-2"
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+        />
+        <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/trips/export?format=csv`}>Export CSV</a>
+        <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/trips/export?format=json`}>Export JSON</a>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left border">
+          <thead>
+            <tr>
+              <th className="px-2">Date</th>
+              <th className="px-2">Destination</th>
+              <th className="px-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {trips.map((t) => (
+              <tr key={t.id} className="odd:bg-gray-50 hover:bg-gray-100">
+                <td className="px-2">{t.trip_date}</td>
+                <td className="px-2">{t.destination}</td>
+                <td className="px-2">
+                  <a className="text-primary underline" href={t.links?.['ui.self'] || `/trips/${t.id}`}>View</a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

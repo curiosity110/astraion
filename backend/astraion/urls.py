@@ -20,6 +20,7 @@ from apps.trips.views import export_manifest, TripViewSet, ReservationViewSet, S
 from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from apps.people.views import ClientViewSet
+from apps.dashboard import views as dashboard_views
 
 def health(_): return HttpResponse("ok")
 
@@ -33,5 +34,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", health),
     path("api/export/trips/<uuid:trip_id>/manifest.csv", export_manifest),
+    path("api/dashboard/summary", dashboard_views.summary),
+    path("api/dashboard/upcoming-trips", dashboard_views.upcoming_trips),
+    path("api/dashboard/recent-clients", dashboard_views.recent_clients),
     path("api/", include(router.urls)),
 ]

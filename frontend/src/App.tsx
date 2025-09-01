@@ -4,6 +4,7 @@ import TripsList from './pages/TripsList';
 import TripDetail from './pages/TripDetail';
 import Dashboard from './pages/Dashboard';
 import Navbar from './components/Navbar';
+import ActivityFeed from './pages/ActivityFeed';
 
 function App() {
   const path = window.location.pathname;
@@ -18,6 +19,8 @@ function App() {
     page = <TripDetail id={id} />;
   } else if (path === '/trips') {
     page = <TripsList />;
+  } else if (path === '/activity') {
+    page = <ActivityFeed />;
   } else {
     page = <Dashboard />;
   }

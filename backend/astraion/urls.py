@@ -19,7 +19,7 @@ from django.urls import path, include
 from apps.trips.views import export_manifest, TripViewSet, ReservationViewSet, SeatAssignmentViewSet
 from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
-from apps.people.views import ClientViewSet
+from apps.people.views import ClientViewSet, activity_feed
 from apps.dashboard import views as dashboard_views
 
 def health(_): return HttpResponse("ok")
@@ -37,5 +37,6 @@ urlpatterns = [
     path("api/dashboard/summary", dashboard_views.summary),
     path("api/dashboard/upcoming-trips", dashboard_views.upcoming_trips),
     path("api/dashboard/recent-clients", dashboard_views.recent_clients),
+    path("api/activity/feed", activity_feed, name="activity-feed"),
     path("api/", include(router.urls)),
 ]

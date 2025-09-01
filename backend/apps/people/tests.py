@@ -50,3 +50,35 @@ class TestClientHistory(APITestCase):
         entry = resp.data["trips"][0]
         self.assertEqual(entry["seat_no"], 1)
         self.assertEqual(entry["status"], "CONFIRMED")
+
+
+class TestClientCRM(APITestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("u", password="p")
+        self.client.force_authenticate(self.user)
+        self.client_rec = Client.objects.create(first_name="Tag", last_name="Tester")
+
+    def test_tags_notes_activity(self):
+        tag_url = reverse("client-tags", args=[self.client_rec.id])
+        resp = self.client.patch(tag_url, {"tags": ["vip"]}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        self.client_rec.refresh_from_db()
+        self.assertEqual(self.client_rec.tags, ["vip"])
+
+        list_url = reverse("client-list")
+        resp = self.client.get(list_url, {"tags": "vip"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data["results"]), 1)
+
+        notes_url = reverse("client-notes", args=[self.client_rec.id])
+        resp = self.client.post(notes_url, {"author": "me", "text": "hello"}, format="json")
+        self.assertEqual(resp.status_code, 201)
+        resp = self.client.get(notes_url)
+        self.assertEqual(len(resp.data), 1)
+
+        feed_url = reverse("activity-feed")
+        resp = self.client.get(feed_url)
+        self.assertEqual(resp.status_code, 200)
+        types = [e["type"] for e in resp.data["events"]]
+        self.assertIn("client.tagged", types)
+        self.assertIn("client.note.added", types)

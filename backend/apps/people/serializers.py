@@ -64,6 +64,7 @@ class ClientSerializer(serializers.ModelSerializer):
         return {
             "api.self": abs_url("client-detail", obj.id),
             "api.reservations": res_url,
+            "api.history": abs_url("client-history", obj.id),
             "ui.self": f"{ui}/clients/{obj.id}",
         }
 

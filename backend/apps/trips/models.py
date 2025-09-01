@@ -25,6 +25,7 @@ class Trip(models.Model):
     status = models.CharField(max_length=10, choices=STATUS, default="DRAFT")
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return super().__str__() + f"{self.id} | {self.trip_date} | {self.origin} to {self.destination}"

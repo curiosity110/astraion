@@ -18,15 +18,50 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:8000/ws/dashboard/');
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onmessage = (e) => {
-      const msg = typeof e.data === 'string' ? e.data : '';
-      setToasts((t) => [...t, { id: Date.now(), message: msg }]);
-      window.dispatchEvent(new CustomEvent('ws-message', { detail: msg }));
+    let attempt = 0;
+    let ws: WebSocket | null = null;
+    let timer: number | null = null;
+
+    const WS_URL = 'ws://localhost:8000/ws/dashboard/';
+
+    const connect = () => {
+      try {
+        ws = new WebSocket(WS_URL);
+      } catch (e) {
+        scheduleReconnect();
+        return;
+      }
+      ws.onopen = () => {
+        setConnected(true);
+        attempt = 0;
+      };
+      ws.onclose = () => {
+        setConnected(false);
+        scheduleReconnect();
+      };
+      ws.onmessage = (e) => {
+        const msg = typeof e.data === 'string' ? e.data : '';
+        setToasts((t) => [...t, { id: Date.now(), message: msg }]);
+        window.dispatchEvent(new CustomEvent('ws-message', { detail: msg }));
+      };
+      ws.onerror = () => {
+        ws?.close();
+      };
     };
-    return () => ws.close();
+
+    const scheduleReconnect = () => {
+      attempt += 1;
+      const delay = Math.min(30000, 500 * 2 ** Math.min(attempt, 6));
+      if (timer) window.clearTimeout(timer);
+      // @ts-ignore - setTimeout returns number in browsers
+      timer = window.setTimeout(connect, delay);
+    };
+
+    connect();
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      ws?.close();
+    };
   }, []);
 
   const dismiss = (id: number) => setToasts((t) => t.filter((toast) => toast.id !== id));

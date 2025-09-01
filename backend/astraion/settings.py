@@ -25,14 +25,17 @@ for candidate in (BASE_DIR / ".env.dev", BASE_DIR / ".env"):
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-s-)k91_5n516e@trl^_x$&*9%ar!%xbpctc^z$qga&8nj5oe-%'
+SECRET_KEY = env(
+    "DJANGO_SECRET_KEY",
+    default='django-insecure-s-)k91_5n516e@trl^_x$&*9%ar!%xbpctc^z$qga&8nj5oe-%',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env.bool("DEBUG", default=True)
 
 
-# ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
-ALLOWED_HOSTS = []
+# Hosts/origins (for HTTP and WebSocket AllowedHostsOriginValidator)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
 
 
 
@@ -171,7 +174,10 @@ REST_FRAMEWORK = {
 }
 
 # CORS
-CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:5173"])
 CORS_ALLOW_CREDENTIALS = True
+
+# Optional: trust same origins for CSRF when posting from frontend
+CSRF_TRUSTED_ORIGINS = [o.replace("http://", "http://").replace("https://", "https://") for o in CORS_ALLOWED_ORIGINS]
 
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")

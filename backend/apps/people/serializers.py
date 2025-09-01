@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Client, Phone
 from django.conf import settings
+from django.urls import reverse
 import phonenumbers
 
 
@@ -29,7 +30,7 @@ class ClientSerializer(serializers.ModelSerializer):
         fields = (
             "id","first_name","last_name","birth_date","nationality",
             "passport_id","email","notes","is_active","created_at","updated_at",
-            "phones",
+            "phones","links",
         )
         read_only_fields = ("created_at","updated_at")
 
@@ -52,5 +53,17 @@ class ClientSerializer(serializers.ModelSerializer):
         return instance
     
     def get_links(self, obj):
+        req = self.context.get("request")
         ui = settings.FRONTEND_BASE_URL
-        return {"ui.self": f"{ui}/clients/{obj.id}"}
+
+        def abs_url(name, *args, **kwargs):
+            return req.build_absolute_uri(reverse(name, args=args, kwargs=kwargs)) if req else ""
+
+        base_res = abs_url("reservation-list")
+        res_url = f"{base_res}?contact_client={obj.id}" if base_res else ""
+        return {
+            "api.self": abs_url("client-detail", obj.id),
+            "api.reservations": res_url,
+            "ui.self": f"{ui}/clients/{obj.id}",
+        }
+

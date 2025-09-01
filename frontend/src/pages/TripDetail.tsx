@@ -28,12 +28,18 @@ type Reservation = {
   status: string;
   contact_client: string | null;
 };
+type Report = {
+  stats: { total: number; booked: number; available: number; cancellations: number };
+  manifest: SeatAssignment[];
+};
 
 export default function TripDetail({ id }: { id: string }) {
   const [trip, setTrip] = useState<Trip | null>(null);
   const [seats, setSeats] = useState<SeatAssignment[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [selectedSeat, setSelectedSeat] = useState<SeatAssignment | null>(null);
+  const [report, setReport] = useState<Report | null>(null);
+  const [tab, setTab] = useState<'detail' | 'report'>('detail');
 
   const fetchTrip = () => api<Trip>(`/api/trips/${id}/`).then(setTrip);
   const fetchSeats = (url?: string) => api<SeatAssignment[]>(url || `/api/trips/${id}/seats/`).then(setSeats);
@@ -41,11 +47,13 @@ export default function TripDetail({ id }: { id: string }) {
     api<Reservation[]>(`/api/reservations/`).then((data) => {
       setReservations(data.filter((r) => r.trip === id));
     });
+  const fetchReport = () => api<Report>(`/api/trips/${id}/report/`).then(setReport);
 
   useEffect(() => {
     fetchTrip();
     fetchSeats();
     fetchReservations();
+    fetchReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -58,6 +66,7 @@ export default function TripDetail({ id }: { id: string }) {
         if (['seat.assigned', 'seat.released', 'reservation.updated', 'client.updated'].includes(data.type)) {
           fetchSeats(trip.links?.['api.seats']);
           fetchReservations();
+          fetchReport();
         }
       } catch (err) {
         console.error(err);
@@ -113,52 +122,104 @@ export default function TripDetail({ id }: { id: string }) {
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-2xl font-bold">Trip {trip.trip_date} {trip.origin} → {trip.destination}</h1>
-      <div>
-        <h2 className="text-xl font-semibold">Seat Map</h2>
-        <div className="grid grid-cols-4 gap-2 w-64">
-          {seatNumbers.map((n) => {
-            const a = seats.find((s) => s.seat_no === n);
-            return (
-              <div
-                key={n}
-                className={`p-2 text-center border rounded cursor-pointer ${a ? 'bg-primary text-white' : 'bg-white'}`}
-                onClick={() => setSelectedSeat(a || null)}
-              >
-                {n}
-                {a && (
-                  <div className="text-xs">
-                    {a.first_name} {a.last_name}
+      <div className="flex gap-4 border-b">
+        <button className={`p-2 ${tab === 'detail' ? 'border-b-2' : ''}`} onClick={() => setTab('detail')}>Details</button>
+        <button className={`p-2 ${tab === 'report' ? 'border-b-2' : ''}`} onClick={() => setTab('report')}>Report</button>
+      </div>
+      {tab === 'detail' ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold">Seat Map</h2>
+            <div className="grid grid-cols-4 gap-2 w-64">
+              {seatNumbers.map((n) => {
+                const a = seats.find((s) => s.seat_no === n);
+                return (
+                  <div
+                    key={n}
+                    className={`p-2 text-center border rounded cursor-pointer ${a ? 'bg-primary text-white' : 'bg-white'}`}
+                    onClick={() => setSelectedSeat(a || null)}
+                  >
+                    {n}
+                    {a && (
+                      <div className="text-xs">
+                        {a.first_name} {a.last_name}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+            {selectedSeat && (
+              <SeatForm
+                seat={selectedSeat}
+                onSave={(id, data) => updateAssignment(id, data).then(() => setSelectedSeat(null))}
+                onClose={() => setSelectedSeat(null)}
+              />
+            )}
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">Reservations</h2>
+            <ul className="space-y-2">
+              {reservations.filter((r) => r.status !== 'CANCELLED').map((r) => (
+                <ReservationItem
+                  key={r.id}
+                  reservation={r}
+                  onSave={updateReservation}
+                  onCancel={cancelReservation}
+                />
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">Reserve a seat</h2>
+            <ReserveForm onReserve={reserveSeat} />
+          </div>
         </div>
-        {selectedSeat && (
-          <SeatForm
-            seat={selectedSeat}
-            onSave={(id, data) => updateAssignment(id, data).then(() => setSelectedSeat(null))}
-            onClose={() => setSelectedSeat(null)}
-          />
-        )}
-      </div>
-      <div>
-        <h2 className="text-xl font-semibold">Reservations</h2>
-        <ul className="space-y-2">
-          {reservations.filter((r) => r.status !== 'CANCELLED').map((r) => (
-            <ReservationItem
-              key={r.id}
-              reservation={r}
-              onSave={updateReservation}
-              onCancel={cancelReservation}
-            />
-          ))}
-        </ul>
-      </div>
-      <div>
-        <h2 className="text-xl font-semibold">Reserve a seat</h2>
-        <ReserveForm onReserve={reserveSeat} />
-      </div>
+      ) : (
+        <div className="space-y-4">
+          {report && (
+            <>
+              <div className="space-y-1">
+                <p>Total seats: {report.stats.total}</p>
+                <p>Booked: {report.stats.booked}</p>
+                <p>Available: {report.stats.available}</p>
+                <p>Cancellations: {report.stats.cancellations}</p>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">Manifest</h2>
+                <table className="min-w-full text-left border">
+                  <thead>
+                    <tr>
+                      <th className="px-2">Seat</th>
+                      <th className="px-2">First</th>
+                      <th className="px-2">Last</th>
+                      <th className="px-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.manifest.map((m) => (
+                      <tr key={m.id}>
+                        <td className="px-2">{m.seat_no}</td>
+                        <td className="px-2">{m.first_name}</td>
+                        <td className="px-2">{m.last_name}</td>
+                        <td className="px-2">{m.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-2 space-x-4">
+                  {trip.links?.['api.manifest.csv'] && (
+                    <a href={trip.links['api.manifest.csv']} className="text-primary underline">Download CSV</a>
+                  )}
+                  {trip.links?.['api.report'] && (
+                    <a href={`${trip.links['api.report']}?format=json`} className="text-primary underline">Download JSON</a>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

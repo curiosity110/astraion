@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view
 from django.shortcuts import get_object_or_404
 from django.db.models import Prefetch
 import csv
+import json
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -64,6 +65,33 @@ class TripViewSet(viewsets.ModelViewSet):
         trip = self.get_object()
         assignments = SeatAssignment.objects.filter(trip=trip)
         data = SeatAssignmentSerializer(assignments, many=True).data
+        return Response(data)
+
+    @action(detail=True, methods=["get"], url_path="report", url_name="report")
+    def report(self, request, pk=None):
+        trip = self.get_object()
+        total = TripSeat.objects.filter(trip=trip).count()
+        booked = SeatAssignment.objects.filter(trip=trip).count()
+        available = TripSeat.objects.filter(trip=trip, blocked=False).count() - booked
+        cancellations = Reservation.objects.filter(trip=trip, status="CANCELLED").count()
+        stats = {
+            "total": total,
+            "booked": booked,
+            "available": available,
+            "cancellations": cancellations,
+        }
+        manifest = SeatAssignmentSerializer(
+            SeatAssignment.objects.filter(trip=trip), many=True
+        ).data
+        data = {"stats": stats, "manifest": manifest}
+        if request.query_params.get("format") == "json":
+            resp = HttpResponse(
+                json.dumps(data, default=str), content_type="application/json"
+            )
+            resp["Content-Disposition"] = (
+                f"attachment; filename=trip_{trip.id}_report.json"
+            )
+            return resp
         return Response(data)
 
     @action(detail=True, methods=["post"], url_path="reserve", url_name="reserve")

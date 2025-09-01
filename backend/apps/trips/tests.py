@@ -82,3 +82,32 @@ class TestManifest(TestCase):
         resp = self.client.get(url)
         lines = resp.content.decode().strip().splitlines()
         self.assertEqual(len(lines)-1, 2)
+
+
+class TestTripReport(TestCase):
+    def setUp(self):
+        bt = BusType.objects.create(name="Mini", seats_count=3)
+        bus = Bus.objects.create(plate="B5", bus_type=bt)
+        self.trip = Trip.objects.create(trip_date=date.today(), origin="A", destination="B", bus=bus)
+        self.user = get_user_model().objects.create_user("ur", password="p")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.contact = Client.objects.create(first_name="R", last_name="P")
+        url = reverse("trip-reserve", args=[self.trip.id])
+        self.client.post(url, {"quantity": 2, "contact_client_id": str(self.contact.id)}, format="json")
+        self.reservation = Reservation.objects.filter(contact_client=self.contact).first()
+
+    def test_report_stats(self):
+        url = reverse("trip-report", args=[self.trip.id])
+        resp = self.client.get(url)
+        self.assertEqual(resp.data["stats"]["total"], 3)
+        self.assertEqual(resp.data["stats"]["booked"], 2)
+        self.assertEqual(resp.data["stats"]["available"], 1)
+        self.assertEqual(resp.data["stats"]["cancellations"], 0)
+        self.assertEqual(len(resp.data["manifest"]), 2)
+
+        res_url = reverse("reservation-detail", args=[self.reservation.id])
+        self.client.patch(res_url, {"status": "CANCELLED"}, format="json")
+        resp2 = self.client.get(url)
+        self.assertEqual(resp2.data["stats"]["booked"], 0)
+        self.assertEqual(resp2.data["stats"]["cancellations"], 1)

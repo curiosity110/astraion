@@ -21,6 +21,8 @@ class TripSerializer(serializers.ModelSerializer):
             "api.seats": abs_url("trip-seats", obj.id),
             "api.reserve": abs_url("trip-reserve", obj.id),
             "api.manifest.csv": abs_url("export_manifest", obj.id),
+            "api.report": abs_url("trip-report", obj.id),
+            "api.report.json": f"{abs_url('trip-report', obj.id)}?format=json",
             "ui.self": f"{ui}/trips/{obj.id}",
             "ui.manifest": f"{ui}/trips/{obj.id}?action=download-manifest",
         }

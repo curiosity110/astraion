@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "apps.people",
     "apps.fleet",
     "apps.trips",
+    "apps.dashboard",
 ]
 
 MIDDLEWARE = [

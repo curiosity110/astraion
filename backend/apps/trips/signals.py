@@ -16,6 +16,10 @@ def push_clients(payload):
     async_to_sync(channel_layer.group_send)("clients", {"type": "broadcast", "data": payload})
 
 
+def push_dashboard(payload):
+    async_to_sync(channel_layer.group_send)("dashboard", {"type": "broadcast", "data": payload})
+
+
 @receiver(post_save, sender=SeatAssignment)
 def seat_assigned(sender, instance, **kwargs):
     push(instance.trip_id, {"type": "seat.assigned", "seat_no": instance.seat_no})
@@ -51,3 +55,4 @@ def reservation_changed(sender, instance, **kwargs):
             "reservation_id": str(instance.id),
             "client_ids": [str(cid) for cid in set(client_ids)],
         })
+    push_dashboard({"type": "data.changed"})

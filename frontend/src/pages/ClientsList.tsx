@@ -109,6 +109,8 @@ export default function ClientsList() {
     fetchClients();
   };
 
+  const safeClients: Client[] = Array.isArray(clients) ? clients : [];
+
   return (
     <Layout title="Clients" breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Clients' }]}>
       <div className="flex flex-col md:flex-row gap-2">
@@ -148,7 +150,7 @@ export default function ClientsList() {
             <div key={i} className="h-4 bg-gray-200 animate-pulse"></div>
           ))}
         </div>
-      ) : clients.length === 0 ? (
+      ) : safeClients.length === 0 ? (
         <div>No clients found.</div>
       ) : (
         <div className="overflow-x-auto">
@@ -158,9 +160,9 @@ export default function ClientsList() {
                 <th className="px-2">
                   <input
                     type="checkbox"
-                    checked={selected.length === clients.length}
+                    checked={selected.length === safeClients.length}
                     onChange={(e) =>
-                      setSelected(e.target.checked ? clients.map((c) => c.id) : [])
+                      setSelected(e.target.checked ? safeClients.map((c) => c.id) : [])
                     }
                   />
                 </th>
@@ -168,7 +170,7 @@ export default function ClientsList() {
               </tr>
             </thead>
             <tbody>
-              {clients.map((c) => (
+              {safeClients.map((c) => (
                 <tr key={c.id} className="odd:bg-gray-50 hover:bg-gray-100">
                   <td className="px-2">
                     <input

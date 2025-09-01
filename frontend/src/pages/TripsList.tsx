@@ -118,6 +118,8 @@ export default function TripsList() {
     fetchTrips();
   };
 
+  const safeTrips: Trip[] = Array.isArray(trips) ? trips : [];
+
   return (
     <Layout title="Trips" breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Trips' }]}>
       <div className="flex flex-col md:flex-row gap-2">
@@ -169,7 +171,7 @@ export default function TripsList() {
             <div key={i} className="h-4 bg-gray-200 animate-pulse"></div>
           ))}
         </div>
-      ) : trips.length === 0 ? (
+      ) : safeTrips.length === 0 ? (
         <div>No trips scheduled yet.</div>
       ) : (
         <div className="overflow-x-auto">
@@ -179,8 +181,8 @@ export default function TripsList() {
                 <th className="px-2">
                   <input
                     type="checkbox"
-                    checked={selected.length === trips.length}
-                    onChange={(e) => setSelected(e.target.checked ? trips.map((t) => t.id) : [])}
+                    checked={selected.length === safeTrips.length}
+                    onChange={(e) => setSelected(e.target.checked ? safeTrips.map((t) => t.id) : [])}
                   />
                 </th>
                 <th className="px-2">Date</th>
@@ -189,7 +191,7 @@ export default function TripsList() {
               </tr>
             </thead>
             <tbody>
-              {trips.map((t) => (
+              {safeTrips.map((t) => (
                 <tr key={t.id} className="odd:bg-gray-50 hover:bg-gray-100">
                   <td className="px-2">
                     <input

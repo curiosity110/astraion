@@ -5,7 +5,7 @@ type Event = {
   id: string;
   type: string;
   client_id: string | null;
-  data: any;
+  data: unknown;
   created_at: string;
 };
 

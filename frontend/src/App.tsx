@@ -3,8 +3,8 @@ import ClientProfile from './pages/ClientProfile';
 import TripsList from './pages/TripsList';
 import TripDetail from './pages/TripDetail';
 import Dashboard from './pages/Dashboard';
-import Navbar from './components/Navbar';
 import ActivityFeed from './pages/ActivityFeed';
+import { WebSocketProvider } from './components/WebSocketProvider';
 
 function App() {
   const path = window.location.pathname;
@@ -24,12 +24,7 @@ function App() {
   } else {
     page = <Dashboard />;
   }
-  return (
-    <div>
-      <Navbar />
-      {page}
-    </div>
-  );
+  return <WebSocketProvider>{page}</WebSocketProvider>;
 }
 
 export default App;

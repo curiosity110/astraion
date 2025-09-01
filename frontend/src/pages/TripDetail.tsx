@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import Layout from '../components/Layout';
 
 type Trip = {
   id: string;
@@ -76,7 +77,16 @@ export default function TripDetail({ id }: { id: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, trip]);
 
-  if (!trip) return <div className="p-4">Loading...</div>;
+  if (!trip)
+    return (
+      <Layout title="Trip">
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-4 bg-gray-200 animate-pulse"></div>
+          ))}
+        </div>
+      </Layout>
+    );
 
   const seatCount = seats.length > 0 ? Math.max(...seats.map((s) => s.seat_no)) : 0;
   const seatNumbers = Array.from({ length: seatCount }, (_, i) => i + 1);
@@ -120,12 +130,23 @@ export default function TripDetail({ id }: { id: string }) {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold">Trip {trip.trip_date} {trip.origin} → {trip.destination}</h1>
-      <div className="flex gap-4 border-b">
-        <button className={`p-2 ${tab === 'detail' ? 'border-b-2' : ''}`} onClick={() => setTab('detail')}>Details</button>
-        <button className={`p-2 ${tab === 'report' ? 'border-b-2' : ''}`} onClick={() => setTab('report')}>Report</button>
-      </div>
+    <Layout
+      title={`Trip ${trip.trip_date} ${trip.origin} → ${trip.destination}`}
+      breadcrumbs={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Trips', href: '/trips' },
+        { label: `Trip ${trip.trip_date}` },
+      ]}
+    >
+      <div className="space-y-4">
+        <div className="flex gap-4 border-b">
+          <button className={`p-2 ${tab === 'detail' ? 'border-b-2' : ''}`} onClick={() => setTab('detail')}>
+            Details
+          </button>
+          <button className={`p-2 ${tab === 'report' ? 'border-b-2' : ''}`} onClick={() => setTab('report')}>
+            Report
+          </button>
+        </div>
       {tab === 'detail' ? (
         <div className="space-y-4">
           <div>
@@ -221,6 +242,7 @@ export default function TripDetail({ id }: { id: string }) {
         </div>
       )}
     </div>
+    </Layout>
   );
 }
 

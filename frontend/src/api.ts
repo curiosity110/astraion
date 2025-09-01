@@ -6,8 +6,16 @@ export async function api<T>(url: string, options: RequestInit = {}): Promise<T>
     },
     ...options,
   });
+  const data = (await resp.json().catch(() => null)) as unknown;
   if (!resp.ok) {
-    throw new Error(`API ${resp.status}`);
+    const detail = (data as { detail?: string } | null)?.detail;
+    const err = new Error(detail || `API ${resp.status}`) as Error & {
+      status?: number;
+      data?: unknown;
+    };
+    err.status = resp.status;
+    err.data = data;
+    throw err;
   }
-  return resp.json();
+  return data as T;
 }

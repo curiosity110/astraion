@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import Layout from '../components/Layout';
 
 type Summary = {
   total_clients: number;
@@ -38,16 +39,23 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:8000/ws/dashboard/');
-    ws.onmessage = fetchAll;
-    return () => ws.close();
+    const handler = () => fetchAll();
+    window.addEventListener('ws-message', handler);
+    return () => window.removeEventListener('ws-message', handler);
   }, []);
-
-  if (!summary) return <div className="p-4">Loading...</div>;
+  if (!summary)
+    return (
+      <Layout title="Dashboard">
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-4 bg-gray-200 animate-pulse"></div>
+          ))}
+        </div>
+      </Layout>
+    );
 
   return (
-    <div className="p-4 space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+    <Layout title="Dashboard">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="p-4 bg-primary-50 rounded">
           <div className="text-sm">Clients</div>
@@ -114,6 +122,6 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
-    </div>
+    </Layout>
   );
 }

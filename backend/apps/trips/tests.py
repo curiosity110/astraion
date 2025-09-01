@@ -111,3 +111,52 @@ class TestTripReport(TestCase):
         resp2 = self.client.get(url)
         self.assertEqual(resp2.data["stats"]["booked"], 0)
         self.assertEqual(resp2.data["stats"]["cancellations"], 1)
+
+
+class TestTripCRUD(TestCase):
+    def setUp(self):
+        bt = BusType.objects.create(name="Mini", seats_count=2)
+        self.bus = Bus.objects.create(plate="B9", bus_type=bt)
+        self.user = get_user_model().objects.create_user("tc", password="p")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_create_update_delete(self):
+        url = reverse("trip-list")
+        data = {
+            "trip_date": str(date.today()),
+            "origin": "A",
+            "destination": "B",
+            "bus": str(self.bus.id),
+        }
+        resp = self.client.post(url, data, format="json")
+        self.assertEqual(resp.status_code, 201)
+        tid = resp.data["id"]
+
+        detail = reverse("trip-detail", args=[tid])
+        resp = self.client.patch(detail, {"destination": "C"}, format="json")
+        self.assertEqual(resp.status_code, 200)
+
+        resp = self.client.delete(detail)
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(Trip.objects.filter(id=tid).exists())
+
+    def test_delete_blocked_with_reservations(self):
+        url = reverse("trip-list")
+        resp = self.client.post(
+            url,
+            {
+                "trip_date": str(date.today()),
+                "origin": "A",
+                "destination": "B",
+                "bus": str(self.bus.id),
+            },
+            format="json",
+        )
+        tid = resp.data["id"]
+        contact = Client.objects.create(first_name="C", last_name="L")
+        res_url = reverse("trip-reserve", args=[tid])
+        self.client.post(res_url, {"quantity": 1, "contact_client_id": str(contact.id)}, format="json")
+        detail = reverse("trip-detail", args=[tid])
+        resp = self.client.delete(detail)
+        self.assertEqual(resp.status_code, 409)

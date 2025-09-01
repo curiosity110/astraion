@@ -82,3 +82,31 @@ class TestClientCRM(APITestCase):
         types = [e["type"] for e in resp.data["events"]]
         self.assertIn("client.tagged", types)
         self.assertIn("client.note.added", types)
+
+
+class TestClientCRUD(APITestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("crud", password="p")
+        self.client.force_authenticate(self.user)
+
+    def test_create_update_soft_delete(self):
+        url = reverse("client-list")
+        data = {
+            "first_name": "New",
+            "last_name": "Client",
+            "phones": [{"e164": "+1 234"}],
+            "passport_id": "P1",
+            "notes": "n",
+        }
+        resp = self.client.post(url, data, format="json")
+        self.assertEqual(resp.status_code, 201)
+        cid = resp.data["id"]
+
+        patch_url = reverse("client-detail", args=[cid])
+        resp = self.client.patch(patch_url, {"first_name": "Upd"}, format="json")
+        self.assertEqual(resp.status_code, 200)
+
+        resp = self.client.delete(patch_url)
+        self.assertEqual(resp.status_code, 204)
+        c = Client.objects.get(id=cid)
+        self.assertFalse(c.is_active)

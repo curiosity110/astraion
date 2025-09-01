@@ -2,7 +2,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
-from .models import SeatAssignment, Reservation
+from .models import SeatAssignment, Reservation, Trip
 
 
 channel_layer = get_channel_layer()
@@ -55,4 +55,16 @@ def reservation_changed(sender, instance, **kwargs):
             "reservation_id": str(instance.id),
             "client_ids": [str(cid) for cid in set(client_ids)],
         })
+    push_dashboard({"type": "data.changed"})
+
+
+@receiver(post_save, sender=Trip)
+def trip_changed(sender, instance, **kwargs):
+    push(instance.id, {"type": "trip.updated", "trip_id": str(instance.id)})
+    push_dashboard({"type": "data.changed"})
+
+
+@receiver(post_delete, sender=Trip)
+def trip_deleted(sender, instance, **kwargs):
+    push(instance.id, {"type": "trip.deleted", "trip_id": str(instance.id)})
     push_dashboard({"type": "data.changed"})

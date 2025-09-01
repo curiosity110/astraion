@@ -13,20 +13,28 @@ from rest_framework.decorators import api_view
 from apps.trips.models import Reservation, SeatAssignment
 
 class ClientViewSet(viewsets.ModelViewSet):
-    queryset = Client.objects.all().prefetch_related("phones").order_by("last_name","first_name")
+    queryset = Client.objects.all().prefetch_related("phones").order_by("last_name", "first_name")
     serializer_class = ClientSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["birth_date", "nationality", "is_active", "created_at"]
-    search_fields = ["first_name","last_name","passport_id","email","phones__e164"]
+    search_fields = ["first_name", "last_name", "passport_id", "email", "phones__e164"]
 
     def get_queryset(self):
         qs = super().get_queryset().distinct()
+        if "is_active" not in self.request.query_params:
+            qs = qs.filter(is_active=True)
         tags_param = self.request.query_params.get("tags")
         if tags_param:
             tags = [t.strip() for t in tags_param.split(",") if t.strip()]
             for t in tags:
                 qs = qs.filter(tags__contains=[t])
         return qs
+
+    def destroy(self, request, *args, **kwargs):
+        client = self.get_object()
+        client.is_active = False
+        client.save()
+        return Response(status=204)
 
     @action(detail=False, methods=["get"], url_path="export", url_name="export")
     def export(self, request):

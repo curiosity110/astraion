@@ -78,6 +78,13 @@ class TripViewSet(viewsets.ModelViewSet):
             qs = qs.filter(destination__icontains=dest)
         return qs
 
+    def destroy(self, request, *args, **kwargs):
+        trip = self.get_object()
+        if trip.reservations.exclude(status="CANCELLED").exists():
+            return Response({"detail": "trip has active reservations"}, status=409)
+        trip.delete()
+        return Response(status=204)
+
     @action(detail=True, methods=["get"], url_path="seats", url_name="seats")
     def seats(self, request, pk=None):
         trip = self.get_object()

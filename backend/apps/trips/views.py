@@ -103,6 +103,16 @@ class ReservationViewSet(viewsets.ModelViewSet):
     serializer_class = ReservationSerializer
     http_method_names = ["patch", "get"]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        contact_client = self.request.query_params.get("contact_client")
+        trip = self.request.query_params.get("trip")
+        if contact_client:
+            qs = qs.filter(contact_client_id=contact_client)
+        if trip:
+            qs = qs.filter(trip_id=trip)
+        return qs
+
     def partial_update(self, request, *args, **kwargs):
         reservation = self.get_object()
         data = request.data

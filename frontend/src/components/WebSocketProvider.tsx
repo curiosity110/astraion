@@ -28,7 +28,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const connect = () => {
       try {
         ws = new WebSocket(WS_URL);
-      } catch (e) {
+      } catch {
         scheduleReconnect();
         return;
       }
@@ -54,7 +54,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       attempt += 1;
       const delay = Math.min(30000, 500 * 2 ** Math.min(attempt, 6));
       if (timer) window.clearTimeout(timer);
-      // @ts-ignore - setTimeout returns number in browsers
+      // @ts-expect-error - setTimeout returns number in browsers
       timer = window.setTimeout(connect, delay);
     };
 

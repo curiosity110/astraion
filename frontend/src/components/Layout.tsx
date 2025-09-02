@@ -9,7 +9,7 @@ interface Crumb {
 
 export default function Layout({ title, breadcrumbs = [], children }: { title: string; breadcrumbs?: Crumb[]; children: ReactNode }) {
   return (
-    <div className="min-h-screen grid grid-rows-[auto,1fr]">
+    <div className="min-h-screen grid grid-rows-[auto,1fr] bg-neutral-950 text-white">
       <Navbar />
       <main className="p-4 max-w-7xl mx-auto w-full space-y-4">
         {breadcrumbs.length > 0 && (

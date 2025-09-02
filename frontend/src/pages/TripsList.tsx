@@ -33,8 +33,8 @@ export default function TripsList() {
     if (destination) params.append('destination', destination);
     if (dateFrom) params.append('date_from', dateFrom);
     if (dateTo) params.append('date_to', dateTo);
-    api<any>(`/api/trips/?${params.toString()}`)
-      .then((d) => setTrips(Array.isArray(d) ? d : d?.results || []))
+    api<Trip[] | { results: Trip[] }>(`/api/trips/?${params.toString()}`)
+      .then((d) => setTrips(Array.isArray(d) ? d : d.results || []))
       .catch(() => setTrips([]))
       .finally(() => setLoading(false));
   };
@@ -119,39 +119,40 @@ export default function TripsList() {
   };
 
   const safeTrips: Trip[] = Array.isArray(trips) ? trips : [];
+  const totalTrips = safeTrips.length;
 
   return (
     <Layout title="Trips" breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Trips' }]}>
       <div className="flex flex-col md:flex-row gap-2">
         <input
-          className="border p-2 flex-1"
+          className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 flex-1"
           placeholder="Destination"
           value={destination}
           onChange={(e) => setDestination(e.target.value)}
         />
         <input
-          className="border p-2"
+          className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2"
           type="date"
           value={dateFrom}
           onChange={(e) => setDateFrom(e.target.value)}
         />
         <input
-          className="border p-2"
+          className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2"
           type="date"
           value={dateTo}
           onChange={(e) => setDateTo(e.target.value)}
         />
-        <button className="bg-primary text-white px-4 py-2" onClick={openCreate}>
+        <button className="bg-primary text-white rounded-xl px-3 py-2" onClick={openCreate}>
           Add Trip
         </button>
         <input id="trip-csv" type="file" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} />
-        <button className="bg-primary text-white px-4 py-2" onClick={importCsv}>
+        <button className="bg-primary text-white rounded-xl px-3 py-2" onClick={importCsv}>
           Import CSV
         </button>
-        <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/trips/export?format=csv`}>
+        <a className="bg-primary text-white rounded-xl px-3 py-2 text-center" href={`/api/trips/export?format=csv`}>
           Export CSV
         </a>
-        <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/trips/export?format=json`}>
+        <a className="bg-primary text-white rounded-xl px-3 py-2 text-center" href={`/api/trips/export?format=json`}>
           Export JSON
         </a>
       </div>
@@ -165,6 +166,7 @@ export default function TripsList() {
           </button>
         </div>
       )}
+      <div className="mt-4 text-sm text-white/70">Total trips: {totalTrips}</div>
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -175,8 +177,8 @@ export default function TripsList() {
         <div>No trips scheduled yet.</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left border">
-            <thead>
+          <table className="min-w-full text-left border border-white/10 bg-white/5">
+            <thead className="bg-white/5 text-white/70">
               <tr>
                 <th className="px-2">
                   <input
@@ -192,7 +194,7 @@ export default function TripsList() {
             </thead>
             <tbody>
               {safeTrips.map((t) => (
-                <tr key={t.id} className="odd:bg-gray-50 hover:bg-gray-100">
+                <tr key={t.id} className="odd:bg-white/5 hover:bg-white/10">
                   <td className="px-2">
                     <input
                       type="checkbox"

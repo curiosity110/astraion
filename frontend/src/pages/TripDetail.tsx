@@ -1,514 +1,497 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api';
 import Layout from '../components/Layout';
+import { api } from '../api';
+import { useWebSocket } from '../components/WebSocketProvider';
 
-type Trip = {
+// Types
+interface Trip {
   id: string;
   trip_date: string;
   origin: string;
   destination: string;
-  links: Record<string, string>;
-};
-
-type SeatAssignment = {
+}
+interface Seat {
   id: string;
   seat_no: number;
-  reservation: string;
-  passenger_client: string | null;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  passport_id: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  passport_id?: string;
   status: string;
-};
+}
+interface Draft {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  passport_id?: string;
+}
 
-type Client = { id: string; first_name: string; last_name: string };
-
-type Reservation = {
-  id: string;
-  trip: string;
-  quantity: number;
-  status: string;
-  contact_client: string | null;
-  notes: string;
-};
-type Report = {
-  stats: { total: number; booked: number; available: number; cancellations: number };
-  manifest: SeatAssignment[];
-};
+type Choice = 'link' | 'create' | 'inline';
 
 export default function TripDetail({ id }: { id: string }) {
+  const { push } = useWebSocket();
   const [trip, setTrip] = useState<Trip | null>(null);
-  const [seats, setSeats] = useState<SeatAssignment[]>([]);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [selectedSeat, setSelectedSeat] = useState<SeatAssignment | null>(null);
-  const [report, setReport] = useState<Report | null>(null);
-  const [tab, setTab] = useState<'detail' | 'report'>('detail');
-  const [clients, setClients] = useState<Client[]>([]);
-  const [selectedRes, setSelectedRes] = useState<string[]>([]);
+  const [seats, setSeats] = useState<Seat[]>([]);
+  const [filter, setFilter] = useState('');
 
-  const fetchTrip = () => api<Trip>(`/api/trips/${id}/`).then(setTrip);
-  const fetchSeats = (url?: string) => api<SeatAssignment[]>(url || `/api/trips/${id}/seats/`).then(setSeats);
-  const fetchReservations = () =>
-    api<any>(`/api/reservations/`).then((data) => {
-      const list: Reservation[] = Array.isArray(data) ? data : data?.results || [];
-      setReservations(list.filter((r) => r.trip === id));
-    });
-  const fetchReport = () => api<Report>(`/api/trips/${id}/report/`).then(setReport);
+  // group hold
+  const [contactFirst, setContactFirst] = useState('');
+  const [contactLast, setContactLast] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [holdQty, setHoldQty] = useState(1);
+  const [holdNotes, setHoldNotes] = useState('');
+
+  // bulk paste
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+
+  // popover for linking choices
+  const [popover, setPopover] = useState<{
+    x: number;
+    y: number;
+    draft: Draft;
+    matches: Array<{ id: string; first_name?: string; last_name?: string; phone?: string }>;
+    resolve: (choice: Choice, data?: { id: string }, remember?: boolean) => void;
+  } | null>(null);
 
   useEffect(() => {
     fetchTrip();
     fetchSeats();
-    fetchReservations();
-    fetchReport();
-    api<any>('/api/clients/').then((d) => setClients(Array.isArray(d) ? d : d?.results || []));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
-    if (!trip) return;
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws/trip/${id}/`);
+    const ws = new WebSocket(`${proto}://${window.location.host}/ws/trip_${id}/`);
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
         if (
-          ['seat.assigned', 'seat.released', 'reservation.updated', 'client.updated', 'trip.updated', 'trip.deleted'].includes(data.type)
+          ['seat.assigned', 'seat.released', 'reservation.updated', 'client.updated'].includes(
+            data.type,
+          )
         ) {
-          fetchSeats(trip.links?.['api.seats']);
-          fetchReservations();
-          fetchReport();
-          if (data.type === 'trip.updated') fetchTrip();
+          fetchSeats();
         }
-      } catch (err) {
-        console.error(err);
+      } catch {
+        /* ignore */
       }
     };
     return () => ws.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, trip]);
+  }, [id]);
 
-  if (!trip)
+  const fetchTrip = () => api<Trip>(`/api/trips/${id}/`).then(setTrip);
+  const fetchSeats = () => api<Seat[]>(`/api/trips/${id}/seats`).then(setSeats);
+
+  const total = seats.length;
+  const cancelled = seats.filter((s) => s.status === 'CANCELLED').length;
+  const available = seats.filter((s) => s.status === 'FREE').length;
+  const booked = total - available - cancelled;
+
+  const updateSeatLocal = (id: string, field: keyof Draft, value: string) => {
+    setSeats((ss) => ss.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+  };
+
+  const pickLinking = async (
+    draft: Draft,
+    anchor: HTMLElement | null,
+  ): Promise<{ choice: Choice; clientId?: string }> => {
+    const pref = sessionStorage.getItem('linkingPreference') as Choice | null;
+
+    if (pref === 'inline') return { choice: 'inline' };
+    if (pref === 'create') {
+      const c = await createClient(draft);
+      return { choice: 'create', clientId: c.id };
+    }
+    const q = (draft.phone || `${draft.first_name || ''} ${draft.last_name || ''}`.trim()).toString();
+    const matches = await findMatches(q);
+    return new Promise((res) => {
+      const rect = anchor?.getBoundingClientRect();
+      const x = rect ? rect.left : window.innerWidth / 2;
+      const y = rect ? rect.bottom + window.scrollY : window.innerHeight / 2 + window.scrollY;
+      setPopover({
+        x,
+        y,
+        draft,
+        matches,
+        resolve: async (choice, data, remember) => {
+          if (remember) sessionStorage.setItem('linkingPreference', choice);
+          if (choice === 'create') {
+            const c = await createClient(draft);
+            res({ choice: 'create', clientId: c.id });
+          } else if (choice === 'link') {
+            res({ choice: 'link', clientId: data?.id });
+          } else {
+            res({ choice: 'inline' });
+          }
+          setPopover(null);
+        },
+      });
+    });
+  };
+
+  const saveSeat = async (seat: Seat, anchor: HTMLElement | null) => {
+    const draft: Draft = {
+      first_name: seat.first_name,
+      last_name: seat.last_name,
+      phone: seat.phone,
+      passport_id: seat.passport_id,
+    };
+    try {
+      const result = await pickLinking(draft, anchor);
+      if (result.choice === 'inline') {
+        await api(`/api/assignments/${seat.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(draft),
+        });
+      } else if (result.clientId) {
+        await api(`/api/assignments/${seat.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ passenger_client_id: result.clientId }),
+        });
+      }
+      push('Saved ✓');
+      fetchSeats();
+    } catch (e) {
+      push((e as Error).message || 'Error');
+    }
+  };
+
+  const releaseSeat = async (id: string) => {
+    await api(`/api/assignments/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'CANCELLED' }),
+    });
+    fetchSeats();
+  };
+
+  const assignOne = async () => {
+    await api(`/api/trips/${id}/reserve`, {
+      method: 'POST',
+      body: JSON.stringify({ quantity: 1 }),
+    });
+    fetchSeats();
+  };
+
+  const createHold = async (anchor: HTMLElement | null) => {
+    try {
+      const draft: Draft = {
+        first_name: contactFirst,
+        last_name: contactLast,
+        phone: contactPhone,
+      };
+      const result = await pickLinking(draft, anchor);
+      const body: Record<string, unknown> = { quantity: holdQty, notes: holdNotes };
+      if (result.choice !== 'inline' && result.clientId) body.contact_client_id = result.clientId;
+      await api(`/api/trips/${id}/reserve`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      push('Saved ✓');
+      setContactFirst('');
+      setContactLast('');
+      setContactPhone('');
+      setHoldQty(1);
+      setHoldNotes('');
+      fetchSeats();
+    } catch (e) {
+      push((e as Error).message || 'Error');
+    }
+  };
+
+  const doBulk = async () => {
+    const lines = bulkText
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const free = seats.filter((s) => s.status === 'FREE');
+    for (let i = 0; i < lines.length && i < free.length; i++) {
+      const [first, last, phone, passport] = lines[i].split(/\s*,\s*/);
+      const seat = free[i];
+      const updated: Seat = {
+        ...seat,
+        first_name: first || '',
+        last_name: last || '',
+        phone: phone || '',
+        passport_id: passport || '',
+      };
+      await saveSeat(updated, null);
+    }
+    setBulkMode(false);
+    setBulkText('');
+  };
+
+  const filtered = seats.filter((s) => {
+    const q = filter.toLowerCase();
     return (
-      <Layout title="Trip">
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-4 bg-gray-200 animate-pulse"></div>
-          ))}
-        </div>
-      </Layout>
+      String(s.seat_no).includes(q) ||
+      (s.first_name || '').toLowerCase().includes(q) ||
+      (s.last_name || '').toLowerCase().includes(q) ||
+      (s.phone || '').toLowerCase().includes(q) ||
+      (s.status || '').toLowerCase().includes(q)
     );
+  });
 
-  const seatCount = seats.length > 0 ? Math.max(...seats.map((s) => s.seat_no)) : 0;
-  const seatNumbers = Array.from({ length: seatCount }, (_, i) => i + 1);
-
-  const reserveSeat = async (clientId: string, quantity: number, override: boolean) => {
-    if (!trip.links?.['api.reserve']) return;
-    await api(trip.links['api.reserve'], {
-      method: 'POST',
-      body: JSON.stringify({ quantity, contact_client_id: clientId, notes: '' }),
-      headers: override ? { 'X-Manager-Override': 'true' } : undefined,
-    });
-    fetchSeats(trip.links['api.seats']);
-    fetchReservations();
-  };
-
-  const updateReservation = async (
-    resId: string,
-    data: Partial<{ quantity: number; status: string; contact_client_id: string | null; notes: string }>,
-    override: boolean,
-  ) => {
-    await api(`/api/reservations/${resId}/`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-      headers: override ? { 'X-Manager-Override': 'true' } : undefined,
-    });
-    fetchSeats(trip.links?.['api.seats']);
-    fetchReservations();
-  };
-
-  const cancelReservation = async (resId: string) => {
-    await updateReservation(resId, { status: 'CANCELLED' }, false);
-  };
-
-  const bulkCancelReservations = async () => {
-    await api('/api/reservations/bulk/', {
-      method: 'POST',
-      body: JSON.stringify({ ids: selectedRes, action: 'cancel' }),
-    });
-    setSelectedRes([]);
-    fetchReservations();
-  };
-
-  const updateAssignment = async (assignId: string, data: Partial<SeatAssignment>) => {
-    await api(`/api/assignments/${assignId}/`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-    fetchSeats(trip.links?.['api.seats']);
-    fetchReservations();
-  };
+  if (!trip) return <Layout title="Trip" />;
 
   return (
     <Layout
-      title={`Trip ${trip.trip_date} ${trip.origin} → ${trip.destination}`}
+      title={`${trip.origin} → ${trip.destination} — ${trip.trip_date}`}
       breadcrumbs={[
         { label: 'Dashboard', href: '/dashboard' },
         { label: 'Trips', href: '/trips' },
-        { label: `Trip ${trip.trip_date}` },
+        { label: 'Manifest' },
       ]}
     >
-      <div className="space-y-4">
-        <div className="flex gap-4 border-b">
-          <button className={`p-2 ${tab === 'detail' ? 'border-b-2' : ''}`} onClick={() => setTab('detail')}>
-            Details
-          </button>
-          <button className={`p-2 ${tab === 'report' ? 'border-b-2' : ''}`} onClick={() => setTab('report')}>
-            Report
+      <div className="flex items-center justify-between">
+        <div className="flex gap-4 text-sm">
+          <span>Total {total}</span>
+          <span>Booked {booked}</span>
+          <span>Available {available}</span>
+          <span>Cancelled {cancelled}</span>
+        </div>
+        <a
+          href={`/api/export/trips/${id}/manifest.csv`}
+          className="bg-primary text-white px-3 py-2 rounded-xl"
+        >
+          Export CSV
+        </a>
+      </div>
+
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2 mt-4">
+        <h2 className="font-semibold">Create Group Hold</h2>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+          <input
+            className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2"
+            placeholder="First"
+            value={contactFirst}
+            onChange={(e) => setContactFirst(e.target.value)}
+          />
+          <input
+            className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2"
+            placeholder="Last"
+            value={contactLast}
+            onChange={(e) => setContactLast(e.target.value)}
+          />
+          <input
+            className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2"
+            placeholder="Phone"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+          />
+          <input
+            type="number"
+            min={1}
+            className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2"
+            value={holdQty}
+            onChange={(e) => setHoldQty(Number(e.target.value))}
+          />
+          <input
+            className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 md:col-span-2"
+            placeholder="Notes"
+            value={holdNotes}
+            onChange={(e) => setHoldNotes(e.target.value)}
+          />
+          <button
+            className="bg-primary text-white rounded-xl px-3 py-2 md:col-span-2"
+            onClick={(e) => createHold(e.currentTarget)}
+          >
+            Create Hold
           </button>
         </div>
-      {tab === 'detail' ? (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold">Seat Map</h2>
-            <div className="grid grid-cols-4 gap-2 w-64" onDragOver={(e) => e.preventDefault()}>
-              {seatNumbers.map((n) => {
-                const a = seats.find((s) => s.seat_no === n);
-                return (
-                  <div
-                    key={n}
-                    className={`p-2 text-center border rounded ${a ? 'bg-primary text-white' : 'bg-white'}`}
-                    draggable={!!a}
-                    onDragStart={(e) =>
-                      a && e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'seat', id: a.id }))
-                    }
-                    onDrop={(e) => {
-                      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                      if (data.type === 'seat') {
-                        updateAssignment(data.id, { seat_no: n });
-                      } else if (data.type === 'client' && a) {
-                        updateAssignment(a.id, { passenger_client_id: data.id });
-                      }
-                    }}
-                    onClick={() => setSelectedSeat(a || null)}
-                  >
-                    {n}
-                    {a && (
-                      <div className="text-xs">
-                        {a.first_name} {a.last_name}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div
-              className="mt-2 p-2 border w-64 text-center"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                if (data.type === 'seat') {
-                  updateAssignment(data.id, { passenger_client_id: null, first_name: '', last_name: '', phone: '', passport_id: '' });
-                }
-              }}
-            >
-              Drop here to release
-            </div>
-            <div className="mt-4 space-y-1">
-              <h3 className="font-semibold">Clients</h3>
-              <ul className="max-h-32 overflow-y-auto border p-1">
-                {clients.map((c) => (
-                  <li
-                    key={c.id}
-                    draggable
-                    onDragStart={(e) =>
-                      e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'client', id: c.id }))
-                    }
-                    className="p-1 hover:bg-gray-100 cursor-move"
-                  >
-                    {c.first_name} {c.last_name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            {selectedSeat && (
-              <SeatForm
-                seat={selectedSeat}
-                onSave={(id, data) => updateAssignment(id, data).then(() => setSelectedSeat(null))}
-                onClose={() => setSelectedSeat(null)}
-              />
-            )}
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold">Reservations</h2>
-          {selectedRes.length > 0 && (
-            <div className="mb-2">
-              <button className="bg-danger text-white px-2" onClick={bulkCancelReservations}>
-                Cancel Selected
-              </button>
-            </div>
-          )}
-          <ul className="space-y-2">
-            {reservations.filter((r) => r.status !== 'CANCELLED').map((r) => (
-              <ReservationItem
-                key={r.id}
-                reservation={r}
-                onSave={updateReservation}
-                onCancel={cancelReservation}
-                selected={selectedRes.includes(r.id)}
-                onSelect={(checked) =>
-                  setSelectedRes(
-                    checked ? [...selectedRes, r.id] : selectedRes.filter((i) => i !== r.id),
-                  )
-                }
-              />
-            ))}
-          </ul>
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold">Reserve a seat</h2>
-            <ReserveForm onReserve={reserveSeat} />
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {report && (
-            <>
-              <div className="space-y-1">
-                <p>Total seats: {report.stats.total}</p>
-                <p>Booked: {report.stats.booked}</p>
-                <p>Available: {report.stats.available}</p>
-                <p>Cancellations: {report.stats.cancellations}</p>
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold">Manifest</h2>
-                <table className="min-w-full text-left border">
-                  <thead>
-                    <tr>
-                      <th className="px-2">Seat</th>
-                      <th className="px-2">First</th>
-                      <th className="px-2">Last</th>
-                      <th className="px-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.manifest.map((m) => (
-                      <tr key={m.id}>
-                        <td className="px-2">{m.seat_no}</td>
-                        <td className="px-2">{m.first_name}</td>
-                        <td className="px-2">{m.last_name}</td>
-                        <td className="px-2">{m.status}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="mt-2 space-x-4">
-                  {trip.links?.['api.manifest.csv'] && (
-                    <a href={trip.links['api.manifest.csv']} className="text-primary underline">Download CSV</a>
-                  )}
-                  {trip.links?.['api.report'] && (
-                    <a href={`${trip.links['api.report']}?format=json`} className="text-primary underline">Download JSON</a>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
+      </div>
+
+      <div className="flex items-center justify-between mt-4">
+        <input
+          className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2"
+          placeholder="Filter"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <button
+          className="bg-white/10 hover:bg-white/20 rounded-xl px-3 py-2"
+          onClick={() => setBulkMode((b) => !b)}
+        >
+          {bulkMode ? 'Close' : 'Bulk paste'}
+        </button>
+      </div>
+      {bulkMode && (
+        <div className="mt-2 space-y-2">
+          <textarea
+            className="w-full h-32 bg-neutral-900 border border-white/10 rounded-xl p-3"
+            placeholder="First,Last,Phone,Passport\n..."
+            value={bulkText}
+            onChange={(e) => setBulkText(e.target.value)}
+          />
+          <button
+            className="bg-primary text-white px-3 py-2 rounded-xl"
+            onClick={doBulk}
+          >
+            Apply
+          </button>
         </div>
       )}
-    </div>
+
+      <div className="overflow-auto mt-4">
+        <table className="min-w-full text-sm">
+          <thead className="bg-white/5 text-white/70 sticky top-[64px]">
+            <tr>
+              <th className="p-2 text-left">#</th>
+              <th className="p-2 text-left">First</th>
+              <th className="p-2 text-left">Last</th>
+              <th className="p-2 text-left">Phone</th>
+              <th className="p-2 text-left">Passport</th>
+              <th className="p-2 text-left">Status</th>
+              <th className="p-2 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((s) => (
+              <tr key={s.id} className="odd:bg-white/5 hover:bg-white/10">
+                <td className="p-2">{s.seat_no}</td>
+                <td className="p-2">
+                  <input
+                    className="w-full bg-transparent focus:outline-none"
+                    value={s.first_name || ''}
+                    onChange={(e) => updateSeatLocal(s.id, 'first_name', e.target.value)}
+                    onBlur={(e) => saveSeat(s, e.currentTarget)}
+                  />
+                </td>
+                <td className="p-2">
+                  <input
+                    className="w-full bg-transparent focus:outline-none"
+                    value={s.last_name || ''}
+                    onChange={(e) => updateSeatLocal(s.id, 'last_name', e.target.value)}
+                    onBlur={(e) => saveSeat(s, e.currentTarget)}
+                  />
+                </td>
+                <td className="p-2">
+                  <input
+                    className="w-full bg-transparent focus:outline-none"
+                    value={s.phone || ''}
+                    onChange={(e) => updateSeatLocal(s.id, 'phone', e.target.value)}
+                    onBlur={(e) => saveSeat(s, e.currentTarget)}
+                  />
+                </td>
+                <td className="p-2">
+                  <input
+                    className="w-full bg-transparent focus:outline-none"
+                    value={s.passport_id || ''}
+                    onChange={(e) => updateSeatLocal(s.id, 'passport_id', e.target.value)}
+                    onBlur={(e) => saveSeat(s, e.currentTarget)}
+                  />
+                </td>
+                <td className="p-2">
+                  <span className={statusClass(s.status)}>{s.status}</span>
+                </td>
+                <td className="p-2 space-x-2">
+                  {s.status === 'FREE' ? (
+                    <button
+                      className="bg-primary text-white px-2 py-1 rounded-lg"
+                      onClick={assignOne}
+                    >
+                      Assign
+                    </button>
+                  ) : (
+                    <button
+                      className="bg-danger/20 text-danger px-2 py-1 rounded-lg"
+                      onClick={() => releaseSeat(s.id)}
+                    >
+                      Release
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {popover && (
+        <div className="absolute z-50" style={{ left: popover.x, top: popover.y }}>
+          <LinkChoice
+            draft={popover.draft}
+            matches={popover.matches}
+            onPick={(choice, data, remember) => popover.resolve(choice, data, remember)}
+          />
+        </div>
+      )}
     </Layout>
   );
 }
 
-function ReserveForm({ onReserve }: { onReserve: (clientId: string, quantity: number, override: boolean) => Promise<void> }) {
-  const [clientId, setClientId] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [override, setOverride] = useState(false);
-  const [error, setError] = useState('');
+function statusClass(status: string) {
+  if (status === 'FREE') return 'px-2 py-1 rounded bg-white/10 text-white/70';
+  if (status === 'HOLD') return 'px-2 py-1 rounded bg-warning/20 text-warning';
+  if (status === 'CONFIRMED') return 'px-2 py-1 rounded bg-success/20 text-success';
+  if (status === 'CANCELLED') return 'px-2 py-1 rounded bg-danger/20 text-danger';
+  return '';
+}
 
-  const submit = async () => {
-    try {
-      await onReserve(clientId, quantity, override);
-      setClientId('');
-      setQuantity(1);
-      setOverride(false);
-      setError('');
-    } catch (e) {
-      const err = e as { status?: number; message?: string };
-      if (err.status === 409 && !override) {
-        setError('Reservation exceeds free seats');
-      } else {
-        setError(err.message || 'Error');
-      }
-    }
-  };
-
+function LinkChoice({
+  draft,
+  matches,
+  onPick,
+}: {
+  draft: Draft;
+  matches: Array<{ id: string; first_name?: string; last_name?: string; phone?: string }>;
+  onPick: (choice: Choice, data?: { id: string }, remember?: boolean) => void;
+}) {
+  const [remember, setRemember] = useState(false);
   return (
-    <div className="space-y-2">
-      {error && <div className="text-danger text-sm">{error}</div>}
-      <div className="flex gap-2">
-        <input
-          className="border p-2 flex-1"
-          placeholder="Contact Client ID"
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-        />
-        <input
-          type="number"
-          className="border p-2 w-24"
-          min={1}
-          value={quantity}
-          onChange={(e) => setQuantity(Number(e.target.value))}
-        />
-        <button className="bg-primary text-white px-4" onClick={submit}>
-          Reserve
+    <div className="p-3 rounded-xl border border-white/10 bg-neutral-900 shadow-xl w-[360px]">
+      <div className="text-sm font-medium mb-2">Save passenger</div>
+      {matches.length > 0 && (
+        <div className="mb-3">
+          <div className="text-xs text-white/60 mb-1">Possible matches</div>
+          <div className="max-h-32 overflow-auto space-y-1">
+            {matches.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => onPick('link', { id: m.id }, remember)}
+                className="w-full text-left px-2 py-1 rounded-lg hover:bg-white/10"
+              >
+                {(m.first_name || '') + ' ' + (m.last_name || '')} — {m.phone || 'no phone'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={() => onPick('inline', undefined, remember)}
+          className="px-2 py-2 rounded-lg bg-white/10 hover:bg-white/20"
+        >
+          Inline only
+        </button>
+        <button
+          onClick={() => onPick('create', draft, remember)}
+          className="px-2 py-2 rounded-lg bg-primary hover:brightness-110"
+        >
+          Create client
         </button>
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} />
-        Override
+      <label className="mt-3 text-xs text-white/50 flex items-center gap-1">
+        <input
+          type="checkbox"
+          checked={remember}
+          onChange={(e) => setRemember(e.target.checked)}
+        />
+        Remember my choice for this session
       </label>
     </div>
   );
 }
 
-function ReservationItem({
-  reservation,
-  onSave,
-  onCancel,
-  selected,
-  onSelect,
-}: {
-  reservation: Reservation;
-  onSave: (
-    id: string,
-    data: Partial<{ quantity: number; status: string; contact_client_id: string | null; notes: string }>,
-    override: boolean,
-  ) => Promise<void>;
-  onCancel: (id: string) => void;
-  selected: boolean;
-  onSelect: (checked: boolean) => void;
-}) {
-  const [quantity, setQuantity] = useState(reservation.quantity);
-  const [status, setStatus] = useState(reservation.status);
-  const [contact, setContact] = useState(reservation.contact_client || '');
-  const [notes, setNotes] = useState(reservation.notes || '');
-  const [override, setOverride] = useState(false);
-  const [error, setError] = useState('');
-
-  const save = async () => {
-    try {
-      await onSave(reservation.id, { quantity, status, contact_client_id: contact || null, notes }, override);
-      setError('');
-    } catch (e) {
-      const err = e as { status?: number; message?: string };
-      if (err.status === 409 && !override) {
-        setError('Reservation exceeds free seats');
-      } else {
-        setError(err.message || 'Error');
-      }
-    }
-  };
-
-  return (
-    <li className="border p-2 rounded space-y-2">
-      {error && <div className="text-danger text-sm">{error}</div>}
-      <div className="flex gap-2">
-        <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} />
-        <input
-          type="number"
-          className="border p-1 w-16"
-          min={1}
-          value={quantity}
-          onChange={(e) => setQuantity(Number(e.target.value))}
-        />
-        <select className="border p-1" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="HOLD">HOLD</option>
-          <option value="TENTATIVE">TENTATIVE</option>
-          <option value="CONFIRMED">CONFIRMED</option>
-          <option value="CANCELLED">CANCELLED</option>
-          <option value="NO_SHOW">NO_SHOW</option>
-        </select>
-        <input
-          className="border p-1 flex-1"
-          placeholder="Contact Client ID"
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
-        />
-        <input
-          className="border p-1 flex-1"
-          placeholder="Notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-        <button className="bg-primary text-white px-2" onClick={save}>
-          Save
-        </button>
-        <button className="text-danger px-2" onClick={() => onCancel(reservation.id)}>
-          Cancel
-        </button>
-      </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} />
-        Override
-      </label>
-    </li>
-  );
+async function findMatches(query: string) {
+  if (!query) return [];
+  try {
+    return await api<Array<{ id: string; first_name?: string; last_name?: string; phone?: string }>>(
+      `/api/clients/?search=${encodeURIComponent(query)}`,
+    );
+  } catch {
+    return [];
+  }
 }
-
-function SeatForm({
-  seat,
-  onSave,
-  onClose,
-}: {
-  seat: SeatAssignment;
-  onSave: (id: string, data: Partial<SeatAssignment>) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [seatNo, setSeatNo] = useState(seat.seat_no);
-  const [first, setFirst] = useState(seat.first_name);
-  const [last, setLast] = useState(seat.last_name);
-  const [phone, setPhone] = useState(seat.phone);
-  const [passport, setPassport] = useState(seat.passport_id);
-  const [error, setError] = useState('');
-
-  const save = async () => {
-    try {
-      await onSave(seat.id, { seat_no: seatNo, first_name: first, last_name: last, phone, passport_id: passport });
-      setError('');
-    } catch (e) {
-      const err = e as { message?: string };
-      setError(err.message || 'Error');
-    }
-  };
-
-  return (
-    <div className="mt-4 border p-2 rounded w-64 space-y-2">
-      <h3 className="font-semibold">Seat {seat.seat_no}</h3>
-      {error && <div className="text-danger text-sm">{error}</div>}
-      <input className="border p-1 w-full" value={first} onChange={(e) => setFirst(e.target.value)} placeholder="First name" />
-      <input className="border p-1 w-full" value={last} onChange={(e) => setLast(e.target.value)} placeholder="Last name" />
-      <input className="border p-1 w-full" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
-      <input
-        className="border p-1 w-full"
-        value={passport}
-        onChange={(e) => setPassport(e.target.value)}
-        placeholder="Passport"
-      />
-      <input
-        type="number"
-        className="border p-1 w-full"
-        value={seatNo}
-        onChange={(e) => setSeatNo(Number(e.target.value))}
-      />
-      <div className="flex gap-2 justify-end">
-        <button className="bg-primary text-white px-2" onClick={save}>
-          Save
-        </button>
-        <button className="px-2" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    </div>
-  );
+async function createClient(p: Draft) {
+  return api<{ id: string }>('/api/clients/', { method: 'POST', body: JSON.stringify(p) });
 }

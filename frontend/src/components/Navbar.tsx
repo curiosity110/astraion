@@ -11,7 +11,10 @@ const links = [
 export default function Navbar() {
   const { connected } = useWebSocket();
   return (
-    <Disclosure as="nav" className="bg-primary text-white">
+    <Disclosure
+      as="nav"
+      className="bg-neutral-900 border-b border-white/10 text-white sticky top-0 z-50"
+    >
       {({ open }) => (
         <>
           <div className="mx-auto max-w-7xl px-4">
@@ -22,7 +25,11 @@ export default function Navbar() {
                 </Disclosure.Button>
                 <div className="hidden sm:flex sm:space-x-4">
                   {links.map((l) => (
-                    <a key={l.href} href={l.href} className="px-3 py-2 font-semibold">
+                    <a
+                      key={l.href}
+                      href={l.href}
+                      className="px-3 py-2 font-semibold rounded-lg hover:bg-white/10"
+                    >
                       {l.label}
                     </a>
                   ))}
@@ -33,7 +40,11 @@ export default function Navbar() {
           </div>
           <Disclosure.Panel className="sm:hidden px-2 pb-3 space-y-1">
             {links.map((l) => (
-              <a key={l.href} href={l.href} className="block px-3 py-2 font-semibold">
+              <a
+                key={l.href}
+                href={l.href}
+                className="block px-3 py-2 font-semibold rounded-lg hover:bg-white/10"
+              >
                 {l.label}
               </a>
             ))}

@@ -2,11 +2,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import {
   PaperAirplaneIcon,
-  CalendarDaysIcon,
-  MapPinIcon,
-  ClockIcon,
-  CurrencyDollarIcon,
-  UsersIcon,
   PlusIcon,
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
@@ -20,6 +15,9 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
+import TripCard, { Trip } from "../components/TripCard";
+import { api } from "../api";
+import { globalStyles } from "../style";
 
 /**
  * Astraion Staff – Trip Details (Single Page)
@@ -31,23 +29,27 @@ import {
  * - Toasts, keyboard shortcuts, dark/light switch
  */
 
-export default function TripDetail({}: { id: string }) {
+export default function TripDetail({ id }: { id: string }) {
   const [theme, setTheme] = useState("light");
   const toggleTheme = () => setTheme((t) => (t === "light" ? "dark" : "light"));
 
-  // --- Demo data (replace with API calls) ---
-  const [trip, setTrip] = useState(() => ({
-    id: 101,
-    code: "TRIP-2025-0315-NYC-LAX",
-    origin: "New York",
-    destination: "Los Angeles",
-    departDate: "2025-03-15",
-    departTime: "08:30",
-    currency: "USD",
-    price: 299,
-    capacity: 45,
-    status: "active",
-  }));
+  const [trip, setTrip] = useState<(Trip & { capacity: number }) | null>(null);
+  useEffect(() => {
+    async function load() {
+      try {
+        const t = await api<Trip>(`/api/trips/${id}/`);
+        let capacity = 0;
+        try {
+          const rep = await api<{ stats: { total: number } }>(`/api/trips/${id}/report`);
+          capacity = rep?.stats?.total ?? 0;
+        } catch {}
+        setTrip({ ...t, capacity });
+      } catch {
+        setTrip(null);
+      }
+    }
+    load();
+  }, [id]);
 
   const [clients] = useState(() => [
     { id: 1, first: "John", last: "Smith", email: "john@smith.com", phone: "+1 555 123-4567" },
@@ -68,8 +70,8 @@ export default function TripDetail({}: { id: string }) {
     total: rows.length,
     confirmed: rows.filter((r) => r.status === "confirmed").length,
     pending: rows.filter((r) => r.status === "pending").length,
-    open: trip.capacity - rows.filter((r) => r.status === "confirmed").length,
-  }), [rows, trip.capacity]);
+    open: (trip?.capacity ?? 0) - rows.filter((r) => r.status === "confirmed").length,
+  }), [rows, trip?.capacity]);
 
   const [editRowId, setEditRowId] = useState(null);
   const [draft, setDraft] = useState({});
@@ -114,7 +116,7 @@ export default function TripDetail({}: { id: string }) {
 
   const commitEdit = () => {
     // capacity guard for confirming
-    if (draft.status === "confirmed" && counts.confirmed >= trip.capacity && !rows.find((r) => r.id === draft.id && r.status === "confirmed")) {
+    if (draft.status === "confirmed" && counts.confirmed >= (trip?.capacity ?? 0) && !rows.find((r) => r.id === draft.id && r.status === "confirmed")) {
       showToast("Capacity reached. Cannot confirm more passengers.");
       return;
     }
@@ -188,19 +190,14 @@ export default function TripDetail({}: { id: string }) {
 
       <main className="mx-auto w-full max-w-7xl px-4 py-6">
         {/* Trip summary */}
-        <div className="rounded-2xl border border-[hsl(var(--primary)/0.15)] bg-[hsl(var(--card))] shadow-[var(--shadow-cosmic)]">
-          <div className="grid grid-cols-2 gap-2 p-4 text-sm md:grid-cols-6">
-            <InfoChip icon={CalendarDaysIcon} label="Date" value={fmtDate(trip.departDate)} />
-            <InfoChip icon={MapPinIcon} label="Route" value={`${trip.origin} → ${trip.destination}`} />
-            <InfoChip icon={ClockIcon} label="Departure" value={fmtTime(trip.departTime)} />
-            <InfoChip icon={CurrencyDollarIcon} label="Price" value={`${trip.currency === "USD" ? "$" : ""}${trip.price}`} />
-            <InfoChip icon={UsersIcon} label="Capacity" value={`${trip.capacity} seats`} />
-            <div className="flex items-center justify-end"><span className="rounded-full border border-[hsl(var(--primary)/0.2)] px-2 py-1 text-xs">{trip.status}</span></div>
+        {trip && (
+          <div className="rounded-2xl border border-[hsl(var(--primary)/0.15)] bg-[hsl(var(--card))] shadow-[var(--shadow-cosmic)]">
+            <TripCard trip={trip} wrap={false} />
+            <div className="border-t border-[hsl(var(--primary)/0.1)] p-4">
+              <CapacityBar total={trip.capacity} confirmed={counts.confirmed} pending={counts.pending} />
+            </div>
           </div>
-          <div className="border-t border-[hsl(var(--primary)/0.1)] p-4">
-            <CapacityBar total={trip.capacity} confirmed={counts.confirmed} pending={counts.pending} />
-          </div>
-        </div>
+        )}
 
         {/* Toolbar */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -340,18 +337,6 @@ function IconButton({ children, ...props }) {
   );
 }
 
-function InfoChip({ icon: Icon, label, value }) {
-  return (
-    <div className="flex items-center gap-2">
-      <Icon className="h-4 w-4 opacity-80" />
-      <div>
-        <div className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">{label}</div>
-        <div className="text-sm">{value}</div>
-      </div>
-    </div>
-  );
-}
-
 function EditRow({ draft, setDraft, manifestDuplicate, clientMatches, onSave, onCancel }) {
   const warn = manifestDuplicate || (clientMatches?.length ?? 0) > 0;
   return (
@@ -473,48 +458,5 @@ function ThemeToggle({ theme, onToggle }) {
 }
 
 /* ------------------------------ Utils & Styles ------------------------------ */
-function fmtDate(iso) {
-  try { return new Date(iso).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }); } catch { return iso; }
-}
-function fmtTime(hm) {
-  try {
-    const [h, m] = hm.split(":");
-    const d = new Date();
-    d.setHours(+h, +m, 0, 0);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch { return hm; }
-}
 function digits(s) { return (s || "").replace(/\D+/g, ""); }
 
-const globalStyles = `
-.astraion { color-scheme: light dark; min-height: 100vh; background: hsl(var(--background)); color: hsl(var(--foreground)); }
-.astraion .navlink { color: hsl(var(--muted-foreground)); }
-
-.astraion.light {
-  --primary: 224 76% 15%;
-  --primary-glow: 224 76% 25%;
-  --accent: 43 96% 56%;
-  --background: 210 40% 98%;
-  --foreground: 224 71% 4%;
-  --card: 0 0% 100%;
-  --muted-foreground: 224 10% 40%;
-  --danger: 0 72% 50%;
-
-  --gradient-cosmic: linear-gradient(135deg, hsl(224 76% 15%), hsl(224 76% 25%));
-  --gradient-stellar: linear-gradient(135deg, hsl(43 96% 56%), hsl(43 96% 70%));
-  --shadow-cosmic: 0 10px 40px -10px hsl(224 76% 15% / 0.25);
-}
-.astraion.dark {
-  --primary: 224 76% 70%;
-  --accent: 43 96% 56%;
-  --background: 224 71% 4%;
-  --card: 224 76% 6%;
-  --foreground: 210 40% 98%;
-  --muted-foreground: 224 10% 70%;
-  --danger: 0 72% 62%;
-
-  --gradient-cosmic: linear-gradient(135deg, hsl(224 76% 20%), hsl(224 76% 35%));
-  --gradient-stellar: linear-gradient(135deg, hsl(43 96% 56%), hsl(43 96% 70%));
-  --shadow-cosmic: 0 10px 40px -10px hsl(224 76% 10% / 0.45);
-}
-`;

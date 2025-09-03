@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Toasts from './Toasts';
 import Navbar from './Navbar';
+import { globalStyles } from '../style';
 
 interface Crumb {
   label: string;
@@ -9,7 +10,8 @@ interface Crumb {
 
 export default function Layout({ title, breadcrumbs = [], children }: { title: string; breadcrumbs?: Crumb[]; children: ReactNode }) {
   return (
-    <div className="min-h-screen grid grid-rows-[auto,1fr]">
+    <div className="astraion light min-h-screen grid grid-rows-[auto,1fr]">
+      <style>{globalStyles}</style>
       <Navbar />
       <main className="p-4 max-w-7xl mx-auto w-full space-y-4">
         {breadcrumbs.length > 0 && (

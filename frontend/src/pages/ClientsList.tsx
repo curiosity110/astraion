@@ -27,8 +27,8 @@ export default function ClientsList() {
 
   const fetchClients = () => {
     setLoading(true);
-    api<any>(`/api/clients/?search=${encodeURIComponent(search)}`)
-      .then((d) => setClients(Array.isArray(d) ? d : d?.results || []))
+    api<Client[] | { results: Client[] }>(`/api/clients/?search=${encodeURIComponent(search)}`)
+      .then((d) => setClients(Array.isArray(d) ? d : d.results || []))
       .catch(() => setClients([]))
       .finally(() => setLoading(false));
   };
@@ -70,7 +70,7 @@ export default function ClientsList() {
       setError('First name required');
       return;
     }
-    const payload: any = { first_name: first, last_name: last, passport_id: passport, notes, phones: phone ? [{ e164: phone }] : [] };
+    const payload: Record<string, unknown> = { first_name: first, last_name: last, passport_id: passport, notes, phones: phone ? [{ e164: phone }] : [] };
     try {
       if (editing) {
         await api(`/api/clients/${editing.id}/`, { method: 'PATCH', body: JSON.stringify(payload) });
@@ -115,22 +115,22 @@ export default function ClientsList() {
     <Layout title="Clients" breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Clients' }]}>
       <div className="flex flex-col md:flex-row gap-2">
         <input
-          className="border p-2 flex-1"
+          className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 flex-1"
           placeholder="Search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button className="bg-primary text-white px-4 py-2" onClick={openCreate}>
+        <button className="bg-primary text-white rounded-xl px-3 py-2" onClick={openCreate}>
           Add Client
         </button>
         <input id="client-csv" type="file" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} />
-        <button className="bg-primary text-white px-4 py-2" onClick={importCsv}>
+        <button className="bg-primary text-white rounded-xl px-3 py-2" onClick={importCsv}>
           Import CSV
         </button>
-        <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/clients/export?format=csv`}>
+        <a className="bg-primary text-white rounded-xl px-3 py-2 text-center" href={`/api/clients/export?format=csv`}>
           Export CSV
         </a>
-        <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/clients/export?format=json`}>
+        <a className="bg-primary text-white rounded-xl px-3 py-2 text-center" href={`/api/clients/export?format=json`}>
           Export JSON
         </a>
       </div>
@@ -154,8 +154,8 @@ export default function ClientsList() {
         <div>No clients found.</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left border">
-            <thead>
+          <table className="min-w-full text-left border border-white/10 bg-white/5">
+            <thead className="bg-white/5 text-white/70">
               <tr>
                 <th className="px-2">
                   <input
@@ -171,7 +171,7 @@ export default function ClientsList() {
             </thead>
             <tbody>
               {safeClients.map((c) => (
-                <tr key={c.id} className="odd:bg-gray-50 hover:bg-gray-100">
+                <tr key={c.id} className="odd:bg-white/5 hover:bg-white/10">
                   <td className="px-2">
                     <input
                       type="checkbox"

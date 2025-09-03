@@ -9,9 +9,15 @@ interface WSContext {
   connected: boolean;
   toasts: Toast[];
   dismiss: (id: number) => void;
+  push: (msg: string) => void;
 }
 
-const WebSocketContext = createContext<WSContext>({ connected: false, toasts: [], dismiss: () => {} });
+const WebSocketContext = createContext<WSContext>({
+  connected: false,
+  toasts: [],
+  dismiss: () => {},
+  push: () => {},
+});
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(false);
@@ -28,7 +34,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const connect = () => {
       try {
         ws = new WebSocket(WS_URL);
-      } catch (e) {
+      } catch {
         scheduleReconnect();
         return;
       }
@@ -54,7 +60,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       attempt += 1;
       const delay = Math.min(30000, 500 * 2 ** Math.min(attempt, 6));
       if (timer) window.clearTimeout(timer);
-      // @ts-ignore - setTimeout returns number in browsers
+      // @ts-expect-error - setTimeout returns number in browsers
       timer = window.setTimeout(connect, delay);
     };
 
@@ -66,9 +72,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const dismiss = (id: number) => setToasts((t) => t.filter((toast) => toast.id !== id));
+  const push = (msg: string) => setToasts((t) => [...t, { id: Date.now(), message: msg }]);
 
   return (
-    <WebSocketContext.Provider value={{ connected, toasts, dismiss }}>
+    <WebSocketContext.Provider value={{ connected, toasts, dismiss, push }}>
       {children}
     </WebSocketContext.Provider>
   );

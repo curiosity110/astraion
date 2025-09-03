@@ -24,7 +24,11 @@ function App() {
   } else {
     page = <Dashboard />;
   }
-  return <WebSocketProvider>{page}</WebSocketProvider>;
+  return (
+    <div className="min-h-screen bg-neutral-950 text-white">
+      <WebSocketProvider>{page}</WebSocketProvider>
+    </div>
+  );
 }
 
 export default App;

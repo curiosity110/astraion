@@ -93,7 +93,7 @@ export default function ClientProfile({ id }: { id: string }) {
     setEmail(client.email);
     setPassport(client.passport_id);
     setPhone(client.phones?.[0]?.e164 || '');
-    setNotesField((client as any).notes || '');
+    setNotesField(client.notes || '');
     setEditing(true);
   };
 
@@ -181,12 +181,12 @@ export default function ClientProfile({ id }: { id: string }) {
               <div className="space-y-1">
                 {editing ? (
                   <>
-                    <input className="border px-2" value={first} onChange={(e) => setFirst(e.target.value)} placeholder="First" />
-                    <input className="border px-2" value={last} onChange={(e) => setLast(e.target.value)} placeholder="Last" />
-                    <input className="border px-2" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-                    <input className="border px-2" value={passport} onChange={(e) => setPassport(e.target.value)} placeholder="Passport" />
-                    <input className="border px-2" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
-                    <textarea className="border px-2" value={notesField} onChange={(e) => setNotesField(e.target.value)} placeholder="Notes" />
+                    <input className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2" value={first} onChange={(e) => setFirst(e.target.value)} placeholder="First" />
+                    <input className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2" value={last} onChange={(e) => setLast(e.target.value)} placeholder="Last" />
+                    <input className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+                    <input className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2" value={passport} onChange={(e) => setPassport(e.target.value)} placeholder="Passport" />
+                    <input className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
+                    <textarea className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2" value={notesField} onChange={(e) => setNotesField(e.target.value)} placeholder="Notes" />
                     <div className="space-x-2">
                       <button className="bg-primary text-white px-2" onClick={saveProfile}>Save</button>
                       <button className="px-2" onClick={() => setEditing(false)}>Cancel</button>

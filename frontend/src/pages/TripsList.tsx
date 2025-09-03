@@ -2,14 +2,7 @@ import { useEffect, useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { api } from '../api';
 import Layout from '../components/Layout';
-
-type Trip = {
-  id: string;
-  trip_date: string;
-  origin: string;
-  destination: string;
-  links?: Record<string, string>;
-};
+import TripCard, { Trip } from '../components/TripCard';
 
 export default function TripsList() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -24,8 +17,6 @@ export default function TripsList() {
   const [origin, setOrigin] = useState('');
   const [bus, setBus] = useState('');
   const [error, setError] = useState('');
-  const [selected, setSelected] = useState<string[]>([]);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
 
   const fetchTrips = () => {
     setLoading(true);
@@ -89,6 +80,8 @@ export default function TripsList() {
     }
   };
 
+  const safeTrips: Trip[] = Array.isArray(trips) ? trips : [];
+
   const remove = async (id: string) => {
     try {
       await api(`/api/trips/${id}/`, { method: 'DELETE' });
@@ -98,27 +91,6 @@ export default function TripsList() {
       alert(err.message || 'Cannot delete');
     }
   };
-
-  const bulkAction = async (action: string) => {
-    await api('/api/trips/bulk/', {
-      method: 'POST',
-      body: JSON.stringify({ ids: selected, action }),
-    });
-    setSelected([]);
-    fetchTrips();
-  };
-
-  const importCsv = async () => {
-    if (!csvFile) return;
-    const form = new FormData();
-    form.append('file', csvFile);
-    await fetch('/api/trips/import/', { method: 'POST', body: form });
-    setCsvFile(null);
-    (document.getElementById('trip-csv') as HTMLInputElement).value = '';
-    fetchTrips();
-  };
-
-  const safeTrips: Trip[] = Array.isArray(trips) ? trips : [];
 
   return (
     <Layout title="Trips" breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Trips' }]}>
@@ -144,27 +116,7 @@ export default function TripsList() {
         <button className="bg-primary text-white px-4 py-2" onClick={openCreate}>
           Add Trip
         </button>
-        <input id="trip-csv" type="file" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} />
-        <button className="bg-primary text-white px-4 py-2" onClick={importCsv}>
-          Import CSV
-        </button>
-        <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/trips/export?format=csv`}>
-          Export CSV
-        </a>
-        <a className="bg-primary text-white px-4 py-2 text-center" href={`/api/trips/export?format=json`}>
-          Export JSON
-        </a>
       </div>
-      {selected.length > 0 && (
-        <div className="my-2 space-x-2">
-          <button className="bg-danger text-white px-2" onClick={() => bulkAction('cancel')}>
-            Cancel Selected
-          </button>
-          <button className="bg-primary text-white px-2" onClick={() => bulkAction('export_manifests')}>
-            Export Manifests
-          </button>
-        </div>
-      )}
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -174,53 +126,17 @@ export default function TripsList() {
       ) : safeTrips.length === 0 ? (
         <div>No trips scheduled yet.</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left border">
-            <thead>
-              <tr>
-                <th className="px-2">
-                  <input
-                    type="checkbox"
-                    checked={selected.length === safeTrips.length}
-                    onChange={(e) => setSelected(e.target.checked ? safeTrips.map((t) => t.id) : [])}
-                  />
-                </th>
-                <th className="px-2">Date</th>
-                <th className="px-2">Destination</th>
-                <th className="px-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {safeTrips.map((t) => (
-                <tr key={t.id} className="odd:bg-gray-50 hover:bg-gray-100">
-                  <td className="px-2">
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(t.id)}
-                      onChange={(e) =>
-                        setSelected(
-                          e.target.checked ? [...selected, t.id] : selected.filter((id) => id !== t.id),
-                        )
-                      }
-                    />
-                  </td>
-                  <td className="px-2">{t.trip_date}</td>
-                  <td className="px-2">{t.destination}</td>
-                  <td className="px-2 space-x-2">
-                    <a className="text-primary underline" href={t.links?.['ui.self'] || `/trips/${t.id}`}>
-                      View
-                    </a>
-                    <button className="text-sm text-primary" onClick={() => openEdit(t)}>
-                      Edit
-                    </button>
-                    <button className="text-sm text-danger" onClick={() => remove(t.id)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          {safeTrips.map((t) => (
+            <div key={t.id}>
+              <TripCard trip={t} />
+              <div className="mt-2 flex gap-2 text-sm">
+                <a className="text-primary underline" href={t.links?.['ui.self'] || `/trips/${t.id}`}>View</a>
+                <button className="text-primary" onClick={() => openEdit(t)}>Edit</button>
+                <button className="text-danger" onClick={() => remove(t.id)}>Delete</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
       <Dialog open={showModal} onClose={() => setShowModal(false)} className="fixed inset-0 flex items-center justify-center p-4">

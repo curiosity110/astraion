@@ -15,7 +15,9 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
-import TripCard, { Trip } from "../components/TripCard";
+import TripCard from "../components/TripCard";
+import type { Trip } from '../components/TripCard';
+
 import { api } from "../api";
 import { globalStyles } from "../style";
 

@@ -1,6 +1,8 @@
-import { Disclosure } from '@headlessui/react';
-import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
-import { useWebSocket } from './WebSocketProvider';
+import { useState } from 'react'
+import { Disclosure } from '@headlessui/react'
+import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
+import { useWebSocket } from './WebSocketProvider'
+import Button from './ui/Button'
 
 const links = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -9,9 +11,24 @@ const links = [
 ];
 
 export default function Navbar() {
-  const { connected } = useWebSocket();
+  const { connected } = useWebSocket()
+  const [dark, setDark] = useState(
+    document.documentElement.classList.contains('dark'),
+  )
+
+  const toggleTheme = () => {
+    const root = document.documentElement
+    if (root.classList.contains('dark')) {
+      root.classList.remove('dark')
+      setDark(false)
+    } else {
+      root.classList.add('dark')
+      setDark(true)
+    }
+  }
+
   return (
-    <Disclosure as="nav" className="bg-primary text-white">
+    <Disclosure as="nav" className="bg-primary text-primary-foreground">
       {({ open }) => (
         <>
           <div className="mx-auto max-w-7xl px-4">
@@ -28,7 +45,14 @@ export default function Navbar() {
                   ))}
                 </div>
               </div>
-              <span className={`h-3 w-3 rounded-full ${connected ? 'bg-success' : 'bg-gray-300'}`}></span>
+              <div className="flex items-center space-x-4">
+                <Button onClick={toggleTheme} variant="stellar">
+                  {dark ? 'Light' : 'Dark'}
+                </Button>
+                <span
+                  className={`h-3 w-3 rounded-full ${connected ? 'bg-success' : 'bg-foreground/30'}`}
+                ></span>
+              </div>
             </div>
           </div>
           <Disclosure.Panel className="sm:hidden px-2 pb-3 space-y-1">
@@ -41,5 +65,5 @@ export default function Navbar() {
         </>
       )}
     </Disclosure>
-  );
+  )
 }

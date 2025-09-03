@@ -1,15 +1,23 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx,js,jsx,html}'],
   theme: {
     extend: {
       colors: {
-        primary: { DEFAULT: '#155EEF', 600: '#1E3A8A', 50: '#E6EEFF' },
-        accent: { DEFAULT: '#00B3FF' },
-        success: '#22C55E',
-        warning: '#F59E0B',
-        danger: '#EF4444',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: 'hsl(var(--card))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          glow: 'hsl(var(--primary-glow))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        accent: 'hsl(var(--accent))',
+        success: 'hsl(142 72% 29%)',
+        warning: 'hsl(38 92% 50%)',
+        danger: 'hsl(0 84% 60%)',
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],

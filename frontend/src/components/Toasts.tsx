@@ -8,7 +8,7 @@ function Toast({ id, message }: { id: number; message: string }) {
     return () => clearTimeout(timer);
   }, [id, dismiss]);
   return (
-    <div className="bg-primary text-white px-4 py-2 rounded shadow">
+    <div className="bg-primary text-primary-foreground px-4 py-2 rounded shadow-[var(--shadow-cosmic)]">
       {message}
     </div>
   );

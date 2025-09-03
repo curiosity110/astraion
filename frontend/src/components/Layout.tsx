@@ -9,11 +9,11 @@ interface Crumb {
 
 export default function Layout({ title, breadcrumbs = [], children }: { title: string; breadcrumbs?: Crumb[]; children: ReactNode }) {
   return (
-    <div className="min-h-screen grid grid-rows-[auto,1fr]">
+    <div className="min-h-screen grid grid-rows-[auto,1fr] bg-background text-foreground">
       <Navbar />
       <main className="p-4 max-w-7xl mx-auto w-full space-y-4">
         {breadcrumbs.length > 0 && (
-          <nav className="text-sm text-gray-500">
+          <nav className="text-sm text-foreground/60">
             {breadcrumbs.map((bc, i) => (
               <span key={i}>
                 {bc.href ? (

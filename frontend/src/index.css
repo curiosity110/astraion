@@ -1,3 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "tailwindcss";
+
+/* Your design tokens recreated in v4 using @theme */
+@theme {
+  --color-primary: #155EEF;
+  --color-primary-600: #1E3A8A;
+  --color-primary-50: #E6EEFF;
+  --color-accent: #00B3FF;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+
+  /* Fonts (optional; Tailwind exposes classes like font-sans) */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-alt: "Source Sans 3", system-ui, sans-serif;
+}
+
+/* (Optional) any global tweaks can live here via @layer */
+@layer base {
+  html, body, #root { height: 100%; }
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Toasts from './Toasts';
-import Navbar from './Navbar';
+import AppShell from './layout/AppShell';
 
 interface Crumb {
   label: string;
@@ -9,9 +9,8 @@ interface Crumb {
 
 export default function Layout({ title, breadcrumbs = [], children }: { title: string; breadcrumbs?: Crumb[]; children: ReactNode }) {
   return (
-    <div className="min-h-screen grid grid-rows-[auto,1fr]">
-      <Navbar />
-      <main className="p-4 max-w-7xl mx-auto w-full space-y-4">
+    <AppShell>
+      <div className="space-y-4">
         {breadcrumbs.length > 0 && (
           <nav className="text-sm text-gray-500">
             {breadcrumbs.map((bc, i) => (
@@ -30,8 +29,8 @@ export default function Layout({ title, breadcrumbs = [], children }: { title: s
         )}
         <h1 className="text-2xl font-bold">{title}</h1>
         {children}
-      </main>
+      </div>
       <Toasts />
-    </div>
+    </AppShell>
   );
 }

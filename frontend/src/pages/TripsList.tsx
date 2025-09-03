@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { api } from '../api';
 import Layout from '../components/Layout';
-import TripCard, { Trip } from '../components/TripCard';
+import TripCard from '../components/TripCard';
+import type { Trip } from '../components/TripCard';
 
 export default function TripsList() {
   const [trips, setTrips] = useState<Trip[]>([]);

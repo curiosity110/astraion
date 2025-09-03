@@ -19,6 +19,7 @@ export interface Trip {
   links?: Record<string, string>;
 }
 
+
 export default function TripCard({ trip, wrap = true }: { trip: Trip; wrap?: boolean }) {
   const [capacity, setCapacity] = useState<number | null>(null);
   useEffect(() => {
